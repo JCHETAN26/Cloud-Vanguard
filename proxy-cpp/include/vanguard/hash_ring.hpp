@@ -19,7 +19,9 @@ namespace vanguard {
 // Thread-safe: lookups take a shared lock, membership changes an exclusive one.
 class HashRing {
  public:
-  static constexpr std::size_t kDefaultVnodes = 150;
+  // 1000 points per node keeps per-node load within ~3% CV (1/sqrt(V));
+  // 150 points gives ~9%. Ring rebuilds stay ~ms-scale at 50 nodes.
+  static constexpr std::size_t kDefaultVnodes = 1000;
 
   explicit HashRing(std::size_t vnodes = kDefaultVnodes);
 

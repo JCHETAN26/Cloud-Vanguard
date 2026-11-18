@@ -33,7 +33,7 @@ struct Config {
 
   std::string node_id = "local";
   std::vector<std::string> ring_nodes;  // empty = {node_id}
-  std::size_t ring_vnodes = 150;
+  std::size_t ring_vnodes = 1000;
 
   unsigned client_idle_timeout_s = 60;
   std::size_t max_body_kb = 4096;

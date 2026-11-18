@@ -28,7 +28,7 @@ client ──► epoll worker (SO_REUSEPORT listener, one per thread)
 | `src/server.cpp` | epoll loops, connection state machines, upstream pool, routing (Linux only) |
 | `include/vanguard/http_parser.hpp` | incremental request parser and response parser (CL / chunked / until-close) |
 | `include/vanguard/lru_cache.hpp` | sharded, byte-bounded, TTL-aware LRU (`shared_ptr<const V>` values) |
-| `include/vanguard/hash_ring.hpp` | consistent-hash ring, MurmurHash3, 150 vnodes by default |
+| `include/vanguard/hash_ring.hpp` | consistent-hash ring, MurmurHash3, 1000 vnodes by default |
 | `include/vanguard/rate_limiter.hpp` | per-tenant RPM + TPM token buckets, sharded mutexes |
 | `include/vanguard/llm_request.hpp` | chat request validation, canonical cache key, token estimate |
 | `include/vanguard/sse.hpp` | SSE event splitter, `[DONE]` detection, HTTP chunk framing |
@@ -50,7 +50,7 @@ Set each option as an environment variable or as the matching flag
 (`UPSTREAM_URL` ↔ `--upstream-url=`). Run `vanguard-proxy --help` for the full list. Key options:
 `LISTEN_PORT` (8080), `WORKERS` (#cores), `UPSTREAM_URL`, `UPSTREAM_API_KEY`,
 `TENANTS_FILE`, `DEFAULT_RPM`/`DEFAULT_TPM`, `CACHE_MAX_MB` (256), `CACHE_SHARDS` (16),
-`CACHE_TTL_S` (3600), `NODE_ID`, `RING_NODES`, `RING_VNODES` (150).
+`CACHE_TTL_S` (3600), `NODE_ID`, `RING_NODES`, `RING_VNODES` (1000).
 
 Example tenants file: [`../benchmarks/tenants.bench.json`](../benchmarks/tenants.bench.json).
 Without one, any bearer token is accepted as its own tenant (`anon-<sha256 prefix>`).

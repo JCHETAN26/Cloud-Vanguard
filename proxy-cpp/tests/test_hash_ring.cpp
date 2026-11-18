@@ -82,31 +82,32 @@ TEST(HashRing, OwnershipIsIndependentOfInsertionOrder) {
   for (const auto& k : make_keys(5000)) EXPECT_EQ(*a.node_for(k), *b.node_for(k));
 }
 
-// Load balance with the default 150 vnodes. Theory: each node's share has a
-// coefficient of variation of roughly 1/sqrt(vnodes) (~8% for 150).
-TEST(HashRing, DefaultVnodesSpreadLoadEvenly) {
+// Load balance. Theory: each node's share has a coefficient of variation of
+// roughly 1/sqrt(vnodes): ~3% at the default 1000, ~8% at 150.
+TEST(HashRing, DefaultVnodesKeepLoadVarianceUnderFivePercent) {
   const auto keys = make_keys(200000);
-  const auto ring = make_ring(10, 150);
+  const auto ring = make_ring(10, HashRing::kDefaultVnodes);
   const auto s = load_stats(*ring, keys);
+  std::printf("[ring] 10 nodes x %zu vnodes, 200k keys: CV=%.2f%% max deviation=%.2f%%\n",
+              HashRing::kDefaultVnodes, s.cv * 100, s.max_rel_dev * 100);
+  EXPECT_EQ(HashRing::kDefaultVnodes, 1000u);
+  EXPECT_LT(s.cv, 0.05);
+  EXPECT_LT(s.max_rel_dev, 0.10);
+}
+
+TEST(HashRing, FewerVnodesAreMeasurablyLooser) {
+  const auto keys = make_keys(200000);
+  const auto s = load_stats(*make_ring(10, 150), keys);
   std::printf("[ring] 10 nodes x 150 vnodes, 200k keys: CV=%.2f%% max deviation=%.2f%%\n", s.cv * 100,
               s.max_rel_dev * 100);
   EXPECT_LT(s.cv, 0.10);
-  EXPECT_LT(s.max_rel_dev, 0.20);
-}
-
-TEST(HashRing, MoreVnodesTightenBalance) {
-  const auto keys = make_keys(200000);
-  const auto s = load_stats(*make_ring(10, 1000), keys);
-  std::printf("[ring] 10 nodes x 1000 vnodes, 200k keys: CV=%.2f%% max deviation=%.2f%%\n", s.cv * 100,
-              s.max_rel_dev * 100);
-  EXPECT_LT(s.cv, 0.05);
 }
 
 // The core consistent-hashing property: adding a node moves ~1/(N+1) of the
 // keys, all of them *to the new node*, and none between existing nodes.
 TEST(HashRing, AddingNodeRedistributesMinimallyAndUniformly) {
   const auto keys = make_keys(200000);
-  auto ring_ptr = make_ring(10, 150);
+  auto ring_ptr = make_ring(10, HashRing::kDefaultVnodes);
   auto& ring = *ring_ptr;
   std::vector<std::string> before;
   before.reserve(keys.size());
@@ -135,7 +136,7 @@ TEST(HashRing, AddingNodeRedistributesMinimallyAndUniformly) {
 
 TEST(HashRing, RemovingNodeOnlyMovesItsKeys) {
   const auto keys = make_keys(100000);
-  auto ring_ptr = make_ring(8, 150);
+  auto ring_ptr = make_ring(8, HashRing::kDefaultVnodes);
   auto& ring = *ring_ptr;
   std::vector<std::string> before;
   for (const auto& k : keys) before.push_back(*ring.node_for(k));
