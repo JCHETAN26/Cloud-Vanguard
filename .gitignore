@@ -1,0 +1,16 @@
+# Build trees
+proxy-cpp/build*/
+build/
+compile_commands.json
+
+# Benchmark output
+benchmarks/results/
+
+# Python
+__pycache__/
+*.pyc
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store

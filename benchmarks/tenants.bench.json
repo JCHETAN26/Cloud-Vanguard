@@ -1,0 +1,9 @@
+{
+  "allow_unknown": false,
+  "default_limits": { "rpm": 600, "tpm": 200000 },
+  "tenants": [
+    { "id": "bench", "api_keys": ["sk-bench-0001"], "rpm": 0, "tpm": 0 },
+    { "id": "rpm-limited", "api_keys": ["sk-rpm-limited"], "rpm": 5, "tpm": 0 },
+    { "id": "tpm-limited", "api_keys": ["sk-tpm-limited"], "rpm": 0, "tpm": 1000 }
+  ]
+}
