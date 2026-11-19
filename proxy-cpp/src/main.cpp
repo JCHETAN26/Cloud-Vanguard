@@ -65,7 +65,24 @@ int main(int argc, char** argv) {
     targets[kEmbedderTarget] = std::move(*embedder);
   }
 
+  ControlPlane::Options control;
+  control.self_id = cfg->node_id;
+  control.default_vnodes = cfg->ring_vnodes;
+  control.peer_breaker.failure_threshold = 3;
+  control.peer_breaker.base_open = CircuitBreaker::Millis(1000);
+  control.peer_breaker.max_open = CircuitBreaker::Millis(30000);
+  if (!cfg->peers.empty()) {
+    auto peers = parse_peer_list(cfg->peers, err);
+    if (!peers) {
+      std::fprintf(stderr, "vanguard-proxy: PEERS: %s\n", err.c_str());
+      return 2;
+    }
+    control.static_peers = std::move(*peers);
+  } else {
+    for (const auto& id : cfg->ring_nodes) control.static_peers.push_back(PeerNode{id, ""});
+  }
+
   std::fprintf(stderr, "vanguard-proxy configuration:\n%s", config_summary(*cfg).c_str());
-  SharedState state(std::move(*cfg), std::move(*tenants), std::move(targets));
+  SharedState state(std::move(*cfg), std::move(control), std::move(*tenants), std::move(targets));
   return run_server(state);
 }

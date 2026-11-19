@@ -18,8 +18,15 @@
 //     per-worker min-heap; epoll_wait sleeps until the earliest one.
 //
 // Request pipeline for POST /v1/chat/completions
-//   auth -> RPM -> validate -> exact cache -> [embed] -> semantic cache
-//        -> TPM -> route (breaker / failover) -> upstream -> cache fill
+//   hop check -> auth -> RPM -> validate -> ring owner?
+//     owner elsewhere (hop 0): forward to owner with X-Vanguard-Hop: 1, relay response
+//     owner here / forwarded to us / owner unreachable:
+//        exact cache -> [embed] -> semantic cache -> TPM -> route (breaker /
+//        failover) -> upstream -> cache fill
+//
+// Control plane: a second listener (ADMIN_PORT) serves /admin/v1/* (ring and
+// tenant updates, see proto/vanguard/control/v1/control.proto); a control
+// thread polls CONTROL_FILE, handles SIGHUP and resolves peer hostnames.
 
 #include "vanguard/server.hpp"
 
@@ -38,6 +45,9 @@
 #include <chrono>
 #include <cmath>
 #include <csignal>
+#include <fstream>
+#include <sstream>
+#include <sys/stat.h>
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -62,6 +72,7 @@ using Clock = std::chrono::steady_clock;
 using Millis = std::chrono::milliseconds;
 
 constexpr std::uint64_t kListenerId = 1;
+constexpr std::uint64_t kAdminListenerId = 2;
 constexpr std::size_t kReadChunk = 64 * 1024;
 constexpr std::size_t kMaxEvents = 512;
 constexpr int kEpollTimeoutMs = 250;
@@ -74,7 +85,34 @@ constexpr std::size_t kMaxEmbeddingBody = 4 * 1024 * 1024;
 constexpr std::string_view kJson = "application/json";
 
 std::atomic<bool> g_stop{false};
+std::atomic<bool> g_reload{false};
 extern "C" void handle_stop_signal(int) { g_stop.store(true, std::memory_order_relaxed); }
+extern "C" void handle_reload_signal(int) { g_reload.store(true, std::memory_order_relaxed); }
+
+// Constant-time comparison for shared secrets.
+bool secret_equals(std::string_view a, std::string_view b) {
+  if (a.size() != b.size()) return false;
+  unsigned char diff = 0;
+  for (std::size_t i = 0; i < a.size(); ++i) diff |= static_cast<unsigned char>(a[i] ^ b[i]);
+  return diff == 0;
+}
+
+// Request headers that must not be copied onto a forwarded request.
+bool is_hop_header(std::string_view name) {
+  for (const char* h : {"host", "connection", "keep-alive", "proxy-connection", "te", "upgrade", "transfer-encoding",
+                        "content-length", "x-vanguard-hop", "x-vanguard-peer-token", "x-vanguard-forwarded-by"}) {
+    if (iequals(name, h)) return true;
+  }
+  return false;
+}
+
+// Response headers that must not be copied from a peer's response.
+bool is_hop_response_header(std::string_view name) {
+  for (const char* h : {"connection", "keep-alive", "transfer-encoding", "content-length"}) {
+    if (iequals(name, h)) return true;
+  }
+  return false;
+}
 
 std::string json_error(std::string_view message, std::string_view type, std::string_view code) {
   nlohmann::json j;
@@ -124,7 +162,18 @@ struct InFlight {
   std::string path;  // original request target
   Clock::time_point start{};
 
+  std::optional<std::chrono::seconds> ttl;  // per-tenant cache TTL override
+
+  // Multi-node forwarding (this node is the ingress, the owner is elsewhere).
+  bool forwarded = false;
+  std::string peer_id;
+  std::string peer_wire;                   // request bytes for the owner (kept for one retry)
+  std::unique_ptr<HttpRequest> original;   // to serve locally if the owner fails
+  bool relay_chunked = false;
+
   // Semantic cache.
+  SemanticMode mode = SemanticMode::kOff;
+  float threshold = 0.94f;
   bool semantic = false;  // eligible for semantic lookup + insert
   std::string scope;
   std::uint64_t guard = 0;
@@ -151,7 +200,8 @@ struct InFlight {
 };
 
 struct ClientConn final : Conn {
-  explicit ClientConn(RequestParser::Limits limits) : Conn(ConnKind::kClient), parser(limits) {}
+  ClientConn(RequestParser::Limits limits, bool admin_port)
+      : Conn(ConnKind::kClient), parser(limits), admin(admin_port) {}
 
   enum class State { kReading, kUpstream, kClosing };
   State state = State::kReading;
@@ -161,6 +211,7 @@ struct ClientConn final : Conn {
   bool keep_alive = true;
   bool peer_closed = false;
   bool in_process = false;  // re-entrancy guard for process_client
+  const bool admin;         // accepted on the admin listener
   std::uint64_t upstream_id = 0;
   std::unique_ptr<InFlight> req;
 };
@@ -182,6 +233,9 @@ struct UpstreamConn final : Conn {
   std::size_t bytes_received = 0;
   std::uint64_t timer_seq = 0;
   bool timer_armed = false;
+  // kPeerTarget only.
+  std::string peer_id;
+  std::shared_ptr<CircuitBreaker> peer_breaker;
 };
 
 struct Timer {
@@ -200,15 +254,14 @@ class Worker {
   Worker(SharedState& s, int index) : s_(s), index_(index) {
     limits_.max_header_bytes = 16 * 1024;
     limits_.max_body_bytes = s.cfg.max_body_kb * 1024;
-    mode_ = s.cfg.semantic_mode == "off"      ? SemanticMode::kOff
-            : s.cfg.semantic_mode == "neural" ? SemanticMode::kRemote
-                                         : SemanticMode::kLexical;
+    refresh_snapshots();
   }
   ~Worker() {
     for (auto& [id, c] : conns_) {
       if (!c->closed && c->fd >= 0) ::close(c->fd);
     }
     if (listen_fd_ >= 0) ::close(listen_fd_);
+    if (admin_fd_ >= 0) ::close(admin_fd_);
     if (epfd_ >= 0) ::close(epfd_);
   }
   Worker(const Worker&) = delete;
@@ -219,14 +272,25 @@ class Worker {
 
  private:
   // Event dispatch
-  void on_accept();
+  void on_accept(int listen_fd, bool admin);
+  int make_listener(const std::string& addr, std::uint16_t port, std::uint64_t id, std::string& err);
+  void refresh_snapshots();
   void on_client_event(ClientConn* c, std::uint32_t ev);
   void on_upstream_event(UpstreamConn* u, std::uint32_t ev);
 
   // Client side
   void process_client(ClientConn* c);
   void handle_request(ClientConn* c, HttpRequest& req);
-  void handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point start);
+  void handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point start, bool local_only = false);
+  void handle_admin(ClientConn* c, HttpRequest& req);
+
+  // Multi-node forwarding
+  bool forward_to_peer(ClientConn* c, HttpRequest& req, const PeerInfo& peer, bool probe,
+                       std::unique_ptr<InFlight>& r);
+  bool dispatch_peer(ClientConn* c, const PeerInfo& peer, bool probe);
+  void relay_peer(UpstreamConn* u, ClientConn* c);
+  void peer_failed(ClientConn* c, const std::shared_ptr<CircuitBreaker>& breaker, bool probe, bool timeout);
+  void serve_locally(ClientConn* c);
   void serve_hit(ClientConn* c, const CachedResponse& hit, const InFlight& r, std::optional<float> similarity);
   void respond(ClientConn* c, int status, std::string_view content_type, std::string_view body,
                std::string_view extra_headers = {});
@@ -254,6 +318,9 @@ class Worker {
 
   // Upstream side
   UpstreamConn* acquire_upstream(int target);
+  UpstreamConn* acquire_conn(int target, const sockaddr_storage& addr, socklen_t addr_len, const std::string& peer_id);
+  std::vector<std::uint64_t>& pool_of(int target, const std::string& peer_id);
+  void release_probe_of(UpstreamConn* u);
   void flush_upstream(UpstreamConn* u);
   void read_upstream(UpstreamConn* u);
   void on_upstream_progress(UpstreamConn* u);
@@ -283,17 +350,62 @@ class Worker {
 
   SharedState& s_;
   const int index_;
-  SemanticMode mode_;
   RequestParser::Limits limits_;
   int epfd_ = -1;
   int listen_fd_ = -1;
-  std::uint64_t next_id_ = kListenerId + 1;
+  int admin_fd_ = -1;
+  std::uint64_t next_id_ = kAdminListenerId + 1;
   std::unordered_map<std::uint64_t, std::unique_ptr<Conn>> conns_;
   std::array<std::vector<std::uint64_t>, 3> idle_;
+  std::unordered_map<std::string, std::vector<std::uint64_t>> peer_idle_;
+  // Control-plane snapshots, refreshed when their generation changes.
+  std::shared_ptr<const Topology> topo_;
+  std::uint64_t topo_gen_ = 0;
+  std::shared_ptr<const TenantRegistry> tenants_;
+  std::uint64_t tenants_gen_ = 0;
   std::vector<std::uint64_t> graveyard_;
   std::priority_queue<Timer, std::vector<Timer>, std::greater<>> timers_;
   std::array<char, kReadChunk> scratch_{};
 };
+
+int Worker::make_listener(const std::string& address, std::uint16_t port, std::uint64_t id, std::string& err) {
+  const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+  if (fd < 0) {
+    err = std::string("socket: ") + std::strerror(errno);
+    return -1;
+  }
+  int one = 1;
+  ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+  // SO_REUSEPORT: every worker binds its own listener on the same port and the
+  // kernel load-balances new connections across them.
+  if (::setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) < 0) {
+    err = std::string("SO_REUSEPORT: ") + std::strerror(errno);
+    ::close(fd);
+    return -1;
+  }
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
+  if (::inet_pton(AF_INET, address.c_str(), &addr.sin_addr) != 1) {
+    err = "listen address must be IPv4: " + address;
+    ::close(fd);
+    return -1;
+  }
+  if (::bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0 || ::listen(fd, 4096) < 0) {
+    err = "bind/listen " + address + ":" + std::to_string(port) + ": " + std::strerror(errno);
+    ::close(fd);
+    return -1;
+  }
+  epoll_event ev{};
+  ev.events = EPOLLIN | EPOLLET;
+  ev.data.u64 = id;
+  if (::epoll_ctl(epfd_, EPOLL_CTL_ADD, fd, &ev) < 0) {
+    err = std::string("epoll_ctl(listener): ") + std::strerror(errno);
+    ::close(fd);
+    return -1;
+  }
+  return fd;
+}
 
 bool Worker::init(std::string& err) {
   epfd_ = ::epoll_create1(EPOLL_CLOEXEC);
@@ -301,48 +413,38 @@ bool Worker::init(std::string& err) {
     err = std::string("epoll_create1: ") + std::strerror(errno);
     return false;
   }
-  listen_fd_ = ::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-  if (listen_fd_ < 0) {
-    err = std::string("socket: ") + std::strerror(errno);
-    return false;
-  }
-  int one = 1;
-  ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-  // SO_REUSEPORT: every worker binds its own listener on the same port and the
-  // kernel load-balances new connections across them.
-  if (::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) < 0) {
-    err = std::string("SO_REUSEPORT: ") + std::strerror(errno);
-    return false;
-  }
-  sockaddr_in addr{};
-  addr.sin_family = AF_INET;
-  addr.sin_port = htons(s_.cfg.listen_port);
-  if (::inet_pton(AF_INET, s_.cfg.listen_addr.c_str(), &addr.sin_addr) != 1) {
-    err = "LISTEN_ADDR must be an IPv4 address: " + s_.cfg.listen_addr;
-    return false;
-  }
-  if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
-    err = "bind " + s_.cfg.listen_addr + ":" + std::to_string(s_.cfg.listen_port) + ": " + std::strerror(errno);
-    return false;
-  }
-  if (::listen(listen_fd_, 4096) < 0) {
-    err = std::string("listen: ") + std::strerror(errno);
-    return false;
-  }
-  epoll_event ev{};
-  ev.events = EPOLLIN | EPOLLET;
-  ev.data.u64 = kListenerId;
-  if (::epoll_ctl(epfd_, EPOLL_CTL_ADD, listen_fd_, &ev) < 0) {
-    err = std::string("epoll_ctl(listener): ") + std::strerror(errno);
-    return false;
+  listen_fd_ = make_listener(s_.cfg.listen_addr, s_.cfg.listen_port, kListenerId, err);
+  if (listen_fd_ < 0) return false;
+  if (s_.cfg.admin_port != 0) {
+    admin_fd_ = make_listener(s_.cfg.admin_addr, s_.cfg.admin_port, kAdminListenerId, err);
+    if (admin_fd_ < 0) return false;
   }
   return true;
+}
+
+void Worker::refresh_snapshots() {
+  if (const auto g = s_.control.topology().generation(); g != topo_gen_) {
+    topo_ = s_.control.topology().load();
+    topo_gen_ = g;
+    // Pooled connections may point at a peer that moved or left the ring.
+    for (auto& [id, pool] : peer_idle_) {
+      for (const auto conn_id : std::vector<std::uint64_t>(pool)) {
+        if (UpstreamConn* u = upstream(conn_id)) close_conn(u);
+      }
+    }
+    peer_idle_.clear();
+  }
+  if (const auto g = s_.control.tenants().generation(); g != tenants_gen_) {
+    tenants_ = s_.control.tenants().load();
+    tenants_gen_ = g;
+  }
 }
 
 void Worker::run() {
   std::array<epoll_event, kMaxEvents> events{};
   auto last_sweep = Clock::now();
   while (!g_stop.load(std::memory_order_relaxed)) {
+    refresh_snapshots();
     const int timeout = next_timeout_ms(Clock::now());
     const int n = ::epoll_wait(epfd_, events.data(), static_cast<int>(events.size()), timeout);
     if (n < 0) {
@@ -354,8 +456,8 @@ void Worker::run() {
     for (int i = 0; i < n; ++i) {
       const std::uint64_t id = events[i].data.u64;
       const std::uint32_t ev = events[i].events;
-      if (id == kListenerId) {
-        on_accept();
+      if (id == kListenerId || id == kAdminListenerId) {
+        on_accept(id == kListenerId ? listen_fd_ : admin_fd_, id == kAdminListenerId);
         continue;
       }
       const auto it = conns_.find(id);
@@ -415,18 +517,30 @@ void Worker::close_conn(Conn* c) {
     cc->upstream_id = 0;
   } else {
     auto* u = static_cast<UpstreamConn*>(c);
-    if (u->probe) {
-      breaker(u->target).release_probe();  // ended without an outcome
-      u->probe = false;
-    }
+    release_probe_of(u);  // ended without an outcome
     u->timer_armed = false;
     if (ClientConn* cc = client(u->client_id)) cc->upstream_id = 0;
     u->client_id = 0;
     if (u->state == UpstreamConn::State::kIdle) {
-      auto& pool = idle_[static_cast<std::size_t>(u->target)];
+      auto& pool = pool_of(u->target, u->peer_id);
       pool.erase(std::remove(pool.begin(), pool.end(), u->id), pool.end());
     }
   }
+}
+
+void Worker::release_probe_of(UpstreamConn* u) {
+  if (!u->probe) return;
+  if (u->target == kPeerTarget) {
+    if (u->peer_breaker) u->peer_breaker->release_probe();
+  } else {
+    breaker(u->target).release_probe();
+  }
+  u->probe = false;
+}
+
+std::vector<std::uint64_t>& Worker::pool_of(int target, const std::string& peer_id) {
+  if (target == kPeerTarget) return peer_idle_[peer_id];
+  return idle_[static_cast<std::size_t>(target)];
 }
 
 ClientConn* Worker::client(std::uint64_t id) {
@@ -513,6 +627,8 @@ void Worker::fire_timers(Clock::time_point now) {
     u->timer_armed = false;
     if (u->target == kEmbedderTarget) {
       attempt_failed(u, 504, "embedding sidecar timed out", "embedder-timeout", true);
+    } else if (u->target == kPeerTarget) {
+      if (!u->headers_handled) attempt_failed(u, 504, "owner node timed out", "peer-timeout", true);
     } else if (!u->headers_handled) {
       attempt_failed(u, 504,
                      "upstream sent no response within " + std::to_string(target_of(u->target).ttfb_timeout_ms) + " ms",
@@ -525,9 +641,9 @@ void Worker::fire_timers(Clock::time_point now) {
 // Client side
 // ---------------------------------------------------------------------------
 
-void Worker::on_accept() {
+void Worker::on_accept(int listen_fd, bool admin) {
   for (;;) {
-    const int fd = ::accept4(listen_fd_, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
+    const int fd = ::accept4(listen_fd, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
     if (fd < 0) {
       if (errno == EINTR || errno == ECONNABORTED) continue;
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -537,7 +653,7 @@ void Worker::on_accept() {
       return;
     }
     set_nodelay(fd);
-    auto conn = std::make_unique<ClientConn>(limits_);
+    auto conn = std::make_unique<ClientConn>(limits_, admin);
     conn->fd = fd;
     ClientConn* c = add_conn(std::move(conn));
     if (!watch(c)) {
@@ -682,7 +798,21 @@ void Worker::handle_request(ClientConn* c, HttpRequest& req) {
   const auto start = Clock::now();
   const bool get = req.method == "GET";
 
+  if (req.path.rfind("/admin/", 0) == 0) {
+    // The control-plane API only exists on the admin listener.
+    if (c->admin) {
+      handle_admin(c, req);
+    } else {
+      respond_error(c, 404, "no route for " + req.path, "invalid_request_error", "not_found");
+    }
+    return;
+  }
   if (req.path == "/v1/chat/completions") {
+    if (c->admin) {
+      respond_error(c, 404, "chat completions are served on the data-plane port", "invalid_request_error",
+                    "not_found");
+      return;
+    }
     if (req.method != "POST") {
       respond_error(c, 405, "use POST", "invalid_request_error", "method_not_allowed", "Allow: POST\r\n");
       return;
@@ -704,14 +834,83 @@ void Worker::handle_request(ClientConn* c, HttpRequest& req) {
       return;
     }
     respond(c, 200, "text/plain; version=0.0.4",
-            s_.metrics.render(s_.cache.stats(), s_.cfg.node_id, s_.ring.node_count(), s_.ring.point_count(),
-                              s_.semantic.size(), s_.breaker_reports()));
+            s_.metrics.render(s_.cache.stats(), s_.control_report(), s_.semantic.size(), s_.breaker_reports()));
     return;
   }
   respond_error(c, 404, "no route for " + req.path, "invalid_request_error", "not_found");
 }
 
-void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point start) {
+void Worker::handle_admin(ClientConn* c, HttpRequest& req) {
+  if (!s_.cfg.admin_token.empty()) {
+    const auto token = bearer_token(req.header("authorization"));
+    if (!token || !secret_equals(*token, s_.cfg.admin_token)) {
+      inc(s_.metrics.admin_rejected);
+      respond_error(c, 401, "admin API requires 'Authorization: Bearer <ADMIN_TOKEN>'", "invalid_request_error",
+                    "admin_unauthorized");
+      return;
+    }
+  }
+  if (req.path == "/admin/v1/config" && req.method == "GET") {
+    respond(c, 200, kJson, s_.control.to_json());
+    return;
+  }
+  const bool write = req.method == "PUT" || req.method == "POST";
+  ApplyOutcome out;
+  std::string error;
+  if (write && req.path == "/admin/v1/ring") {
+    const auto update = parse_ring_update(req.body, error);
+    if (update) out = s_.control.apply_ring(*update);
+  } else if (write && req.path == "/admin/v1/tenants") {
+    const auto update = parse_tenant_set_update(req.body, error);
+    if (update) out = s_.control.apply_tenants(*update);
+  } else if (write && req.path == "/admin/v1/config") {
+    const auto update = parse_control_document(req.body, error);
+    if (update) out = s_.control.apply_document(*update);
+  } else {
+    respond_error(c, req.path.rfind("/admin/v1/", 0) == 0 ? 405 : 404, "unknown admin route " + req.method + " " + req.path,
+                  "invalid_request_error", "not_found");
+    return;
+  }
+  if (!error.empty()) {
+    inc(s_.metrics.admin_rejected);
+    respond_error(c, 400, error, "invalid_request_error", "invalid_control_message");
+    return;
+  }
+  inc(out.applied ? s_.metrics.admin_updates : (out.http_status == 409 ? s_.metrics.admin_rejected
+                                                                         : s_.metrics.admin_updates));
+  if (out.applied) {
+    s_.wake_control();  // resolve new peer hostnames off the event loop
+    refresh_snapshots();
+  }
+  nlohmann::json body = {{"applied", out.applied},
+                         {"version", std::to_string(out.version)},
+                         {"message", out.message},
+                         {"nodeId", s_.cfg.node_id}};
+  respond(c, out.http_status, kJson, body.dump());
+}
+
+void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point start, bool local_only) {
+  // 0. Loop prevention. X-Vanguard-Hop is only honoured from authenticated
+  //    peers, and nothing travels more than one hop.
+  int hop = 0;
+  if (!parse_hop_header(req.header("x-vanguard-hop"), hop)) {
+    inc(s_.metrics.bad_requests);
+    respond_error(c, 400, "malformed X-Vanguard-Hop", "invalid_request_error", "invalid_hop");
+    return;
+  }
+  if (hop > 0 && !s_.cfg.peer_token.empty() &&
+      !secret_equals(req.header("x-vanguard-peer-token"), s_.cfg.peer_token)) {
+    inc(s_.metrics.hop_rejected_untrusted);
+    respond_error(c, 403, "X-Vanguard-Hop is reserved for gateway peers", "invalid_request_error", "untrusted_hop");
+    return;
+  }
+  if (decide_route(hop, true, true) == RouteAction::kRejectLoop) {
+    inc(s_.metrics.hop_rejected_loop);
+    respond_error(c, 508, "forwarding loop detected (X-Vanguard-Hop " + std::to_string(hop) + " > 1)",
+                  "routing_error", "loop_detected");
+    return;
+  }
+
   // 1. Authenticate.
   const auto token = bearer_token(req.header("authorization"));
   if (!token) {
@@ -720,19 +919,25 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
                   "missing_api_key");
     return;
   }
-  const auto tenant = s_.tenants.resolve(*token);
+  const auto tenant = tenants_->resolve(*token);
   if (!tenant) {
     inc(s_.metrics.auth_failures);
     respond_error(c, 401, "unknown API key", "invalid_request_error", "invalid_api_key");
     return;
   }
 
-  // 2. RPM applies to every request, hits included: it protects the gateway.
+  // 2. Limits are cluster-wide; each of N ring members enforces 1/N. RPM is
+  //    charged once, at the ingress hop (hits included: it protects the
+  //    gateway); forwarded requests and local fallbacks were already counted.
   const auto now = Clock::now();
-  if (const auto d = s_.limiter.check_request(tenant->id, tenant->limits, now); !d.allowed) {
-    inc(s_.metrics.rate_limited_rpm);
-    reject_rate_limited(c, d, "rpm");
-    return;
+  const double share = 1.0 / static_cast<double>(topo_->members());
+  const TenantLimits limits{tenant->limits.rpm * share, tenant->limits.tpm * share};
+  if (hop == 0 && !local_only) {
+    if (const auto d = s_.limiter.check_request(tenant->id, limits, now); !d.allowed) {
+      inc(s_.metrics.rate_limited_rpm);
+      reject_rate_limited(c, d, "rpm");
+      return;
+    }
   }
 
   // 3. Validate and derive the exact-cache key.
@@ -746,16 +951,43 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
   auto r = std::make_unique<InFlight>();
   r->start = start;
   r->tenant = tenant->id;
-  r->limits = tenant->limits;
+  r->limits = limits;
+  if (tenant->ttl_seconds) r->ttl = std::chrono::seconds(*tenant->ttl_seconds);
   r->stream = chat->stream;
   r->key = cache_key(tenant->id, *chat);
   r->key_hex = to_hex(r->key.data(), 8);
-  r->owner = s_.ring.node_for(r->key).value_or(s_.cfg.node_id);
+  r->owner = topo_->owner(r->key);
   const auto cache_control = req.header("cache-control");
   r->bypass = contains_token(cache_control, "no-cache");
   r->store = !contains_token(cache_control, "no-store");
 
-  // 4. Exact cache.
+  // 4. Route to the key's owner so every node shares one logical cache.
+  if (!local_only) {
+    const bool owner_is_self = r->owner == topo_->self_id;
+    const PeerInfo* peer = owner_is_self ? nullptr : topo_->find(r->owner);
+    const bool reachable = peer != nullptr && peer->resolved && peer->addr_len > 0;
+    switch (decide_route(hop, owner_is_self, reachable)) {
+      case RouteAction::kForward: {
+        const auto permit = peer->breaker->try_acquire(now);
+        if (permit.allowed && forward_to_peer(c, req, *peer, permit.probe, r)) return;
+        if (permit.allowed) peer->breaker->record_failure(permit.probe, now);
+        inc(s_.metrics.forward_local_fallback);
+        break;
+      }
+      case RouteAction::kServeLocalFallback:
+        inc(s_.metrics.forward_local_fallback);
+        break;
+      case RouteAction::kServeLocalDivergent:
+        inc(s_.metrics.ring_divergence);
+        break;
+      case RouteAction::kServeLocal:
+      case RouteAction::kRejectLoop:
+        break;
+    }
+  }
+  if (hop == 1) inc(s_.metrics.forward_received);
+
+  // 5. Exact cache.
   if (r->bypass) {
     inc(s_.metrics.cache_bypass);
   } else if (const auto hit = s_.cache.get(r->key, now)) {
@@ -768,7 +1000,25 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
   r->estimate = estimate_tokens(*chat, s_.cfg.default_completion_tokens);
   r->body = std::move(req.body);
   r->path = req.target;
-  if (mode_ != SemanticMode::kOff && !r->bypass) {
+  // Semantic settings: tenant policy overrides the gateway default. A tenant
+  // asking for neural matching on a gateway without a sidecar gets lexical.
+  r->mode = SemanticMode::kLexical;
+  const std::string& mode_name = tenant->semantic_mode ? *tenant->semantic_mode : s_.cfg.semantic_mode;
+  if (mode_name == "off") {
+    r->mode = SemanticMode::kOff;
+  } else if (mode_name == "neural") {
+    r->mode = s_.targets[kEmbedderTarget].configured ? SemanticMode::kRemote : SemanticMode::kLexical;
+    if (r->mode == SemanticMode::kLexical) inc(s_.metrics.semantic_mode_downgrades);
+  }
+  if (tenant->semantic_threshold) {
+    r->threshold = static_cast<float>(*tenant->semantic_threshold);
+  } else if (tenant->semantic_mode) {
+    r->threshold = static_cast<float>(r->mode == SemanticMode::kRemote ? kNeuralDefaultThreshold
+                                                                        : kLexicalDefaultThreshold);
+  } else {
+    r->threshold = static_cast<float>(s_.cfg.semantic_threshold);
+  }
+  if (r->mode != SemanticMode::kOff && !r->bypass) {
     std::string text = semantic_text(*chat);
     if (!text.empty() && text.size() <= s_.cfg.semantic_max_chars) {
       const auto features = analyze_prompt(text);
@@ -777,7 +1027,7 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
         r->scope = semantic_scope(tenant->id, *chat);
         r->guard = features.guard;
         r->salient = salient_tokens(features.tokens);
-        if (mode_ == SemanticMode::kLexical) {
+        if (r->mode == SemanticMode::kLexical) {
           r->embedding = s_.lexical.embed_tokens(features.tokens);
           r->semantic = !r->embedding.empty();
         } else {
@@ -789,9 +1039,9 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
   c->req = std::move(r);
   c->state = ClientConn::State::kUpstream;
 
-  if (c->req->semantic && mode_ == SemanticMode::kLexical) {
+  if (c->req->semantic && c->req->mode == SemanticMode::kLexical) {
     if (!try_semantic_hit(c)) continue_miss(c);
-  } else if (c->req->semantic && mode_ == SemanticMode::kRemote) {
+  } else if (c->req->semantic && c->req->mode == SemanticMode::kRemote) {
     start_embedding(c);
   } else {
     continue_miss(c);
@@ -815,7 +1065,8 @@ void Worker::serve_hit(ClientConn* c, const CachedResponse& hit, const InFlight&
     head.append("X-Cache: HIT\r\n");
   }
   head.append("X-Vanguard-Cache-Key: ").append(r.key_hex);
-  head.append("\r\nX-Vanguard-Owner: ").append(r.owner).append("\r\n");
+  head.append("\r\nX-Vanguard-Owner: ").append(r.owner);
+  head.append("\r\nX-Vanguard-Node: ").append(s_.cfg.node_id).append("\r\n");
   head.append(c->keep_alive ? "Connection: keep-alive\r\n\r\n" : "Connection: close\r\n\r\n");
   c->out.append(head);
   c->out.append(hit.body);  // JSON body, or every SSE event pre-framed as chunks
@@ -846,6 +1097,148 @@ void Worker::finish_exchange(ClientConn* c) {
 }
 
 // ---------------------------------------------------------------------------
+// Multi-node forwarding
+// ---------------------------------------------------------------------------
+
+// Forwards the request to the key's owner. Returns false (leaving `r` with the
+// caller) if no connection could be opened, so the caller serves locally.
+bool Worker::forward_to_peer(ClientConn* c, HttpRequest& req, const PeerInfo& peer, bool probe,
+                             std::unique_ptr<InFlight>& r) {
+  std::string& w = r->peer_wire;
+  w.reserve(512 + req.body.size());
+  w.append(req.method).append(" ").append(req.target).append(" HTTP/1.1\r\nHost: ").append(peer.address).append("\r\n");
+  for (const auto& h : req.headers) {
+    if (!is_hop_header(h.name)) w.append(h.name).append(": ").append(h.value).append("\r\n");
+  }
+  w.append("Content-Length: ").append(std::to_string(req.body.size()));
+  w.append("\r\nX-Vanguard-Hop: 1\r\nX-Vanguard-Forwarded-By: ").append(s_.cfg.node_id).append("\r\n");
+  if (!s_.cfg.peer_token.empty()) w.append("X-Vanguard-Peer-Token: ").append(s_.cfg.peer_token).append("\r\n");
+  w.append("Connection: keep-alive\r\n\r\n").append(req.body);
+  r->forwarded = true;
+  r->peer_id = peer.id;
+  r->original = std::make_unique<HttpRequest>(std::move(req));
+
+  auto saved = std::move(r);
+  c->req = std::move(saved);
+  c->state = ClientConn::State::kUpstream;
+  if (!dispatch_peer(c, peer, probe)) {
+    // Hand the request back to the caller untouched (minus the wire bytes).
+    r = std::move(c->req);
+    req = std::move(*r->original);
+    r->original.reset();
+    r->forwarded = false;
+    r->peer_wire.clear();
+    c->state = ClientConn::State::kReading;
+    return false;
+  }
+  inc(s_.metrics.forwarded);
+  return true;
+}
+
+bool Worker::dispatch_peer(ClientConn* c, const PeerInfo& peer, bool probe) {
+  UpstreamConn* u = acquire_conn(kPeerTarget, peer.addr, peer.addr_len, peer.id);
+  if (u == nullptr) return false;
+  u->peer_breaker = peer.breaker;
+  u->client_id = c->id;
+  c->upstream_id = u->id;
+  u->probe = probe;
+  u->parser.reset();
+  u->decoded.clear();
+  u->headers_handled = false;
+  u->paused = false;
+  u->bytes_received = 0;
+  u->out.clear();
+  u->out.append(c->req->peer_wire);
+  const auto now = Clock::now();
+  u->last_active = now;
+  // While connecting, a short deadline: an unreachable owner degrades to
+  // local service quickly. Once connected, wait for the owner's own pipeline.
+  arm_timer(u, now + Millis(u->state == UpstreamConn::State::kConnecting ? s_.cfg.peer_connect_timeout_ms
+                                                                           : s_.cfg.peer_timeout_ms));
+  if (u->state == UpstreamConn::State::kActive) flush_upstream(u);
+  return true;
+}
+
+void Worker::relay_peer(UpstreamConn* u, ClientConn* c) {
+  InFlight& r = *c->req;
+  if (u->parser.headers_complete() && !u->headers_handled) {
+    u->headers_handled = true;
+    disarm_timer(u);
+    // Any HTTP response means the owner is alive; its own upstream errors are
+    // not the peer link's fault.
+    if (u->peer_breaker) u->peer_breaker->record_success(u->probe, Clock::now());
+    u->probe = false;
+    const int status = u->parser.status();
+    std::string head;
+    head.reserve(512);
+    head.append("HTTP/1.1 ").append(std::to_string(status)).append(" ").append(status_reason(status)).append("\r\n");
+    for (const auto& h : u->parser.headers()) {
+      if (!is_hop_response_header(h.name)) head.append(h.name).append(": ").append(h.value).append("\r\n");
+    }
+    const auto length = u->parser.header("content-length");
+    r.relay_chunked = u->parser.chunked() || length.empty();
+    if (r.relay_chunked) {
+      head.append("Transfer-Encoding: chunked\r\n");
+    } else {
+      head.append("Content-Length: ").append(length).append("\r\n");
+    }
+    head.append("X-Vanguard-Ingress: ").append(s_.cfg.node_id).append("\r\n");
+    head.append(c->keep_alive ? "Connection: keep-alive\r\n\r\n" : "Connection: close\r\n\r\n");
+    c->out.append(head);
+    r.response_started = true;
+    s_.metrics.count_status(status);
+  }
+  if (r.response_started && !u->decoded.empty()) {
+    if (r.relay_chunked) {
+      std::string chunk;
+      append_http_chunk(chunk, u->decoded);
+      c->out.append(chunk);
+    } else {
+      c->out.append(u->decoded);
+    }
+    u->decoded.clear();
+    flush_client(c);
+    if (c->closed || u->closed) return;
+    if (c->out.size() > kClientHighWater) u->paused = true;
+  }
+  if (u->parser.done()) {
+    if (r.relay_chunked) c->out.append(kLastHttpChunk);
+    s_.metrics.latency_forwarded.observe(Clock::now() - r.start);
+    release_upstream(u);
+    finish_exchange(c);
+  }
+}
+
+void Worker::peer_failed(ClientConn* c, const std::shared_ptr<CircuitBreaker>& breaker, bool probe, bool timeout) {
+  if (breaker) breaker->record_failure(probe, Clock::now());
+  inc(s_.metrics.forward_failures);
+  if (timeout) inc(s_.metrics.upstream_timeouts);
+  if (c == nullptr || !c->req) return;
+  if (c->req->response_started) {
+    close_conn(c);  // owner died mid-response: nothing honest left to send
+    return;
+  }
+  inc(s_.metrics.forward_local_fallback);
+  serve_locally(c);
+}
+
+// The owner could not be used: run the request through the local pipeline as
+// if this node owned the key (correct answer, possibly a duplicate fill).
+void Worker::serve_locally(ClientConn* c) {
+  auto original = std::move(c->req->original);
+  const auto start = c->req->start;
+  c->req.reset();
+  c->upstream_id = 0;
+  c->state = ClientConn::State::kReading;
+  handle_chat(c, *original, start, /*local_only=*/true);
+  if (c->closed) return;
+  if (c->state == ClientConn::State::kReading) {
+    if (!c->keep_alive) c->state = ClientConn::State::kClosing;
+    process_client(c);  // flush the synchronous response; serve pipelined requests
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Miss pipeline: semantic cache
 // ---------------------------------------------------------------------------
 
@@ -853,8 +1246,7 @@ bool Worker::try_semantic_hit(ClientConn* c) {
   InFlight& r = *c->req;
   inc(s_.metrics.semantic_lookups);
   std::size_t salient_rejections = 0;
-  const auto match = s_.semantic.lookup(r.scope, r.guard, r.embedding, static_cast<float>(s_.cfg.semantic_threshold),
-                                        &r.salient, &salient_rejections);
+  const auto match = s_.semantic.lookup(r.scope, r.guard, r.embedding, r.threshold, &r.salient, &salient_rejections);
   if (salient_rejections > 0) inc(s_.metrics.semantic_salient_rejections, salient_rejections);
   if (!match) return false;
   auto hit = s_.cache.get(match->cache_key);
@@ -864,7 +1256,7 @@ bool Worker::try_semantic_hit(ClientConn* c) {
     return false;
   }
   // Alias the exact key too, so a repeat of this exact phrasing is an exact hit.
-  if (r.store) s_.cache.put(r.key, hit, hit->charge(r.key.size()));
+  if (r.store) s_.cache.put(r.key, hit, hit->charge(r.key.size()), SteadyClock::now(), r.ttl);
   serve_hit(c, *hit, r, match->similarity);
   finish_exchange(c);
   return true;
@@ -1013,7 +1405,7 @@ std::string Worker::build_llm_request(const InFlight& r, int target) const {
 }
 
 std::string Worker::routing_headers(const InFlight& r) const {
-  std::string h;
+  std::string h = "X-Vanguard-Node: " + s_.cfg.node_id + "\r\n";
   if (r.target >= 0) h.append("X-Vanguard-Upstream: ").append(target_of(r.target).name).append("\r\n");
   if (r.failed_over) h.append("X-Vanguard-Failover: ").append(r.failover_reason).append("\r\n");
   return h;
@@ -1131,7 +1523,7 @@ void Worker::complete_llm(UpstreamConn* u, ClientConn* c) {
       entry->sse_frames = r.frames;
       entry->body = std::move(r.wire);
       const auto charge = entry->charge(r.key.size());
-      filled = s_.cache.put(r.key, std::move(entry), charge);
+      filled = s_.cache.put(r.key, std::move(entry), charge, SteadyClock::now(), r.ttl);
     }
     s_.metrics.latency_miss_stream.observe(elapsed);
   } else {
@@ -1152,7 +1544,7 @@ void Worker::complete_llm(UpstreamConn* u, ClientConn* c) {
       entry->content_type = ct.empty() ? std::string(kJson) : std::string(ct);
       entry->body = std::move(u->decoded);
       const auto charge = entry->charge(r.key.size());
-      filled = s_.cache.put(r.key, std::move(entry), charge);
+      filled = s_.cache.put(r.key, std::move(entry), charge, SteadyClock::now(), r.ttl);
     }
     s_.metrics.latency_miss.observe(elapsed);
   }
@@ -1171,7 +1563,13 @@ void Worker::complete_llm(UpstreamConn* u, ClientConn* c) {
 // ---------------------------------------------------------------------------
 
 UpstreamConn* Worker::acquire_upstream(int target) {
-  auto& pool = idle_[static_cast<std::size_t>(target)];
+  const auto& up = target_of(target);
+  return acquire_conn(target, up.addr, up.addr_len, {});
+}
+
+UpstreamConn* Worker::acquire_conn(int target, const sockaddr_storage& addr, socklen_t addr_len,
+                                   const std::string& peer_id) {
+  auto& pool = pool_of(target, peer_id);
   while (!pool.empty()) {
     const auto id = pool.back();
     pool.pop_back();
@@ -1181,17 +1579,18 @@ UpstreamConn* Worker::acquire_upstream(int target) {
       return u;
     }
   }
-  const auto& up = target_of(target);
-  const int fd = ::socket(up.addr.ss_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+  if (addr_len == 0) return nullptr;
+  const int fd = ::socket(addr.ss_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
   if (fd < 0) return nullptr;
   set_nodelay(fd);
-  const int rc = ::connect(fd, reinterpret_cast<const sockaddr*>(&up.addr), up.addr_len);
+  const int rc = ::connect(fd, reinterpret_cast<const sockaddr*>(&addr), addr_len);
   if (rc < 0 && errno != EINPROGRESS) {
     ::close(fd);
     return nullptr;
   }
   auto conn = std::make_unique<UpstreamConn>(target);
   conn->fd = fd;
+  conn->peer_id = peer_id;
   conn->state = rc == 0 ? UpstreamConn::State::kActive : UpstreamConn::State::kConnecting;
   UpstreamConn* u = add_conn(std::move(conn));
   if (!watch(u)) {
@@ -1215,11 +1614,14 @@ void Worker::on_upstream_event(UpstreamConn* u, std::uint32_t ev) {
     socklen_t len = sizeof(err);
     ::getsockopt(u->fd, SOL_SOCKET, SO_ERROR, &err, &len);
     if (err != 0) {
-      attempt_failed(u, 502, std::string("connect to ") + target_of(u->target).name + " failed: " + std::strerror(err),
-                     "connect-error", false);
+      const std::string name = u->target == kPeerTarget ? "peer " + u->peer_id : target_of(u->target).name;
+      attempt_failed(u, 502, "connect to " + name + " failed: " + std::strerror(err), "connect-error", false);
       return;
     }
     u->state = UpstreamConn::State::kActive;
+    if (u->target == kPeerTarget && u->client_id != 0) {
+      arm_timer(u, Clock::now() + Millis(s_.cfg.peer_timeout_ms));  // connected: now wait for the owner
+    }
   }
   if (ev & EPOLLOUT) {
     flush_upstream(u);
@@ -1271,7 +1673,18 @@ void Worker::read_upstream(UpstreamConn* u) {
       u->probe = false;
       close_conn(u);
       if (c == nullptr || !c->req) {
-        if (probe) breaker(t).release_probe();
+        if (probe && t != kPeerTarget) breaker(t).release_probe();
+        if (probe && t == kPeerTarget && u->peer_breaker) u->peer_breaker->release_probe();
+        return;
+      }
+      if (t == kPeerTarget) {
+        const PeerInfo* peer = topo_->find(c->req->peer_id);
+        if (!c->req->retried && peer != nullptr && peer->resolved) {
+          c->req->retried = true;
+          inc(s_.metrics.upstream_retries);
+          if (dispatch_peer(c, *peer, probe)) return;
+        }
+        peer_failed(c, peer != nullptr ? peer->breaker : nullptr, probe, false);
         return;
       }
       if (!c->req->retried) {
@@ -1298,6 +1711,10 @@ void Worker::on_upstream_progress(UpstreamConn* u) {
   ClientConn* c = client(u->client_id);
   if (c == nullptr || !c->req) {
     close_conn(u);
+    return;
+  }
+  if (u->target == kPeerTarget) {
+    relay_peer(u, c);
     return;
   }
   if (u->target == kEmbedderTarget) {
@@ -1351,9 +1768,12 @@ void Worker::attempt_failed(UpstreamConn* u, int status, std::string_view messag
   ClientConn* c = client(u->client_id);
   const int t = u->target;
   const bool probe = u->probe;
+  const auto peer_breaker = u->peer_breaker;
   u->probe = false;  // the outcome is recorded below, not released on close
   close_conn(u);
-  if (t == kEmbedderTarget) {
+  if (t == kPeerTarget) {
+    peer_failed(c, peer_breaker, probe, timeout);
+  } else if (t == kEmbedderTarget) {
     embedding_failed(c, probe, timeout);
   } else {
     llm_attempt_failed(c, t, probe, status, message, reason, timeout);
@@ -1365,12 +1785,9 @@ void Worker::release_upstream(UpstreamConn* u) {
   u->client_id = 0;
   u->decoded.clear();
   disarm_timer(u);
-  if (u->probe) {
-    breaker(u->target).release_probe();
-    u->probe = false;
-  }
+  release_probe_of(u);
   const bool reusable = u->parser.keep_alive() && u->parser.leftover() == 0 && u->out.empty();
-  auto& pool = idle_[static_cast<std::size_t>(u->target)];
+  auto& pool = pool_of(u->target, u->peer_id);
   if (reusable && pool.size() < s_.cfg.upstream_max_idle) {
     u->state = UpstreamConn::State::kIdle;
     pool.push_back(u->id);
@@ -1416,23 +1833,101 @@ std::optional<UpstreamTarget> resolve_target(std::string name, const std::string
   return t;
 }
 
-SharedState::SharedState(Config c, TenantRegistry t, std::array<UpstreamTarget, 3> upstreams)
+SharedState::SharedState(Config c, ControlPlane::Options control_options, TenantRegistry base_tenants,
+                         std::array<UpstreamTarget, 3> upstreams)
     : cfg(std::move(c)),
-      tenants(std::move(t)),
       targets(std::move(upstreams)),
       router(targets[kPrimaryTarget].breaker.get(),
              targets[kFallbackTarget].configured ? targets[kFallbackTarget].breaker.get() : nullptr),
       lexical(cfg.semantic_dim),
+      control(std::move(control_options), std::move(base_tenants)),
       limiter(64),
       cache(cfg.cache_max_mb * 1024 * 1024, cfg.cache_shards, std::chrono::seconds(cfg.cache_ttl_s)),
-      semantic(SemanticIndex::Options{16, cfg.semantic_max_entries, cfg.semantic_max_per_scope}),
-      ring(cfg.ring_vnodes) {
-  if (cfg.ring_nodes.empty()) {
-    ring.add_node(cfg.node_id);
-  } else {
-    for (const auto& n : cfg.ring_nodes) ring.add_node(n);
+      semantic(SemanticIndex::Options{16, cfg.semantic_max_entries, cfg.semantic_max_per_scope}) {}
+
+void SharedState::wake_control() {
+  {
+    std::lock_guard lock(wake_mu);
+    wake = true;
+  }
+  wake_cv.notify_one();
+}
+
+ControlReport SharedState::control_report() const {
+  const auto topo = control.topology().load();
+  ControlReport r;
+  r.node_id = cfg.node_id;
+  r.ring_nodes = topo->peers.size();
+  r.ring_points = topo->ring ? topo->ring->point_count() : 0;
+  r.ring_version = control.ring_version();
+  r.tenants_version = control.tenants_version();
+  return r;
+}
+
+namespace {
+
+// Loads CONTROL_FILE when its mtime/size/content changed (or when forced).
+// Kubernetes updates ConfigMap volumes by swapping a symlink, so stat()
+// follows links and the content hash guards against touch-only changes.
+struct ControlFileState {
+  std::int64_t mtime_ns = -1;
+  std::int64_t size = -1;
+  std::size_t hash = 0;
+};
+
+void load_control_file(SharedState& s, ControlFileState& st, bool force) {
+  struct stat info {};
+  if (::stat(s.cfg.control_file.c_str(), &info) != 0) {
+    if (st.size != -2) std::fprintf(stderr, "[control] %s: %s\n", s.cfg.control_file.c_str(), std::strerror(errno));
+    st.size = -2;
+    return;
+  }
+#if defined(__APPLE__)
+  const std::int64_t mtime = static_cast<std::int64_t>(info.st_mtimespec.tv_sec) * 1000000000 + info.st_mtimespec.tv_nsec;
+#else
+  const std::int64_t mtime = static_cast<std::int64_t>(info.st_mtim.tv_sec) * 1000000000 + info.st_mtim.tv_nsec;
+#endif
+  if (!force && mtime == st.mtime_ns && info.st_size == st.size) return;
+  std::ifstream in(s.cfg.control_file);
+  std::stringstream ss;
+  ss << in.rdbuf();
+  const std::string text = ss.str();
+  const std::size_t hash = std::hash<std::string>{}(text);
+  st.mtime_ns = mtime;
+  st.size = info.st_size;
+  if (!force && hash == st.hash) return;
+  st.hash = hash;
+  std::string error;
+  const auto doc = parse_control_document(text, error);
+  if (!doc) {
+    inc(s.metrics.admin_rejected);
+    std::fprintf(stderr, "[control] ignoring invalid %s: %s\n", s.cfg.control_file.c_str(), error.c_str());
+    return;
+  }
+  const auto out = s.control.apply_document(*doc);
+  inc(out.applied ? s.metrics.admin_updates : s.metrics.admin_rejected);
+  std::fprintf(stderr, "[control] %s: %s (version %lld)\n", s.cfg.control_file.c_str(),
+               out.applied ? "applied" : (out.http_status == 409 ? "stale, ignored" : "unchanged"),
+               static_cast<long long>(out.version));
+}
+
+// Control thread: CONTROL_FILE polling, SIGHUP reloads, peer DNS resolution.
+void control_loop(SharedState& s, ControlFileState file_state) {
+  auto last_refresh = Clock::now();
+  while (!g_stop.load(std::memory_order_relaxed)) {
+    const bool forced = g_reload.exchange(false);
+    if (!s.cfg.control_file.empty()) load_control_file(s, file_state, forced);
+    const bool refresh_all = forced || Clock::now() - last_refresh > std::chrono::seconds(15);
+    s.control.resolve_peers(refresh_all);
+    if (refresh_all) last_refresh = Clock::now();
+    std::unique_lock lock(s.wake_mu);
+    s.wake_cv.wait_for(lock, std::chrono::seconds(1),
+                       [&] { return s.wake || g_stop.load(std::memory_order_relaxed); });
+    s.wake = false;
   }
 }
+
+}  // namespace
 
 std::vector<BreakerReport> SharedState::breaker_reports() const {
   const auto now = Clock::now();
@@ -1457,7 +1952,16 @@ int run_server(SharedState& state) {
   sigemptyset(&sa.sa_mask);
   ::sigaction(SIGINT, &sa, nullptr);
   ::sigaction(SIGTERM, &sa, nullptr);
+  struct sigaction hup{};
+  hup.sa_handler = handle_reload_signal;
+  sigemptyset(&hup.sa_mask);
+  ::sigaction(SIGHUP, &hup, nullptr);
   ::signal(SIGPIPE, SIG_IGN);
+
+  // Converge on the control document and peer addresses before serving.
+  ControlFileState file_state;
+  if (!state.cfg.control_file.empty()) load_control_file(state, file_state, true);
+  state.control.resolve_peers(false);
 
   unsigned n = state.cfg.workers;
   if (n == 0) n = std::max(1u, std::thread::hardware_concurrency());
@@ -1487,9 +1991,17 @@ int run_server(SharedState& state) {
                  state.cfg.semantic_threshold, kNeuralDefaultThreshold);
   }
 
+  const auto topo = state.control.topology().load();
+  std::fprintf(stderr, "vanguard-proxy node %s: ring of %zu node(s) x %zu vnodes (version %lld)%s%s\n",
+               state.cfg.node_id.c_str(), topo->peers.size(), topo->vnodes, static_cast<long long>(topo->version),
+               state.cfg.admin_port != 0 ? ", admin API on " : "",
+               state.cfg.admin_port != 0 ? (state.cfg.admin_addr + ":" + std::to_string(state.cfg.admin_port)).c_str()
+                                         : "");
+
   std::vector<std::thread> threads;
-  threads.reserve(n);
+  threads.reserve(n + 1);
   for (auto& w : workers) threads.emplace_back([&w] { w->run(); });
+  threads.emplace_back([&state, file_state] { control_loop(state, file_state); });
   for (auto& t : threads) t.join();
   std::fprintf(stderr, "vanguard-proxy: shutdown complete\n");
   return 0;

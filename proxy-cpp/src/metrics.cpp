@@ -70,15 +70,14 @@ void Metrics::count_status(int status) noexcept {
   statuses_[i].fetch_add(1, std::memory_order_relaxed);  // last slot = "other"
 }
 
-std::string Metrics::render(const CacheStats& cache, std::string_view node_id, std::size_t ring_nodes,
-                            std::size_t ring_points, std::size_t semantic_entries,
+std::string Metrics::render(const CacheStats& cache, const ControlReport& control, std::size_t semantic_entries,
                             const std::vector<BreakerReport>& breakers) const {
   std::string out;
   out.reserve(8192);
 
   out.append("# HELP vanguard_info Static information about this gateway instance.\n");
   out.append("# TYPE vanguard_info gauge\n");
-  line(out, "vanguard_info", "node_id=\"" + std::string(node_id) + "\",version=\"0.1.0\"", 1);
+  line(out, "vanguard_info", "node_id=\"" + control.node_id + "\",version=\"0.3.0\"", 1);
 
   counter(out, "vanguard_connections_accepted_total", "Client connections accepted.", load(connections_accepted));
   gauge(out, "vanguard_connections_active", "Open client connections.",
@@ -179,8 +178,25 @@ std::string Metrics::render(const CacheStats& cache, std::string_view node_id, s
     }
   }
 
-  gauge(out, "vanguard_ring_nodes", "Nodes on the consistent-hash ring.", static_cast<double>(ring_nodes));
-  gauge(out, "vanguard_ring_points", "Virtual node points on the ring.", static_cast<double>(ring_points));
+  gauge(out, "vanguard_ring_nodes", "Nodes on the consistent-hash ring.", static_cast<double>(control.ring_nodes));
+  gauge(out, "vanguard_ring_points", "Virtual node points on the ring.", static_cast<double>(control.ring_points));
+  gauge(out, "vanguard_ring_version", "Active ring config version.", static_cast<double>(control.ring_version));
+  gauge(out, "vanguard_tenants_version", "Active tenant policy version.", static_cast<double>(control.tenants_version));
+  counter(out, "vanguard_forwarded_total", "Requests forwarded to their owner node.", load(forwarded));
+  counter(out, "vanguard_forward_received_total", "Forwarded requests served here as owner.", load(forward_received));
+  counter(out, "vanguard_forward_local_fallback_total", "Requests served locally because the owner was unreachable.",
+          load(forward_local_fallback));
+  counter(out, "vanguard_forward_failures_total", "Forwarding attempts that failed.", load(forward_failures));
+  counter(out, "vanguard_ring_divergence_total", "Forwarded requests whose owner differs in our ring (not re-forwarded).",
+          load(ring_divergence));
+  out.append("# HELP vanguard_hop_rejections_total Requests rejected by loop prevention.\n");
+  out.append("# TYPE vanguard_hop_rejections_total counter\n");
+  line(out, "vanguard_hop_rejections_total", "reason=\"loop\"", static_cast<double>(load(hop_rejected_loop)));
+  line(out, "vanguard_hop_rejections_total", "reason=\"untrusted\"", static_cast<double>(load(hop_rejected_untrusted)));
+  counter(out, "vanguard_admin_updates_total", "Control-plane updates applied.", load(admin_updates));
+  counter(out, "vanguard_admin_rejected_total", "Control-plane updates rejected (invalid or stale).", load(admin_rejected));
+  counter(out, "vanguard_semantic_mode_downgrades_total", "Neural semantic requests served lexically (no sidecar).",
+          load(semantic_mode_downgrades));
 
   out.append("# HELP vanguard_request_duration_seconds Chat completion latency inside the proxy.\n");
   out.append("# TYPE vanguard_request_duration_seconds histogram\n");
@@ -192,6 +208,9 @@ std::string Metrics::render(const CacheStats& cache, std::string_view node_id, s
   out.append("# HELP vanguard_embedding_duration_seconds Remote embedding call latency.\n");
   out.append("# TYPE vanguard_embedding_duration_seconds histogram\n");
   latency_embedding.render(out, "vanguard_embedding_duration_seconds", "");
+  out.append("# HELP vanguard_forwarded_duration_seconds Latency of requests relayed to their owner node.\n");
+  out.append("# TYPE vanguard_forwarded_duration_seconds histogram\n");
+  latency_forwarded.render(out, "vanguard_forwarded_duration_seconds", "");
   return out;
 }
 

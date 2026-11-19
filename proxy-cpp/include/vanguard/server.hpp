@@ -3,7 +3,9 @@
 #include <sys/socket.h>
 
 #include <array>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -11,6 +13,7 @@
 #include "vanguard/cached_response.hpp"
 #include "vanguard/circuit_breaker.hpp"
 #include "vanguard/config.hpp"
+#include "vanguard/control.hpp"
 #include "vanguard/embedding.hpp"
 #include "vanguard/hash_ring.hpp"
 #include "vanguard/lru_cache.hpp"
@@ -22,7 +25,9 @@
 namespace vanguard {
 
 // Index into SharedState::targets (matches FailoverRouter::Target for 0 and 1).
-enum TargetIndex : int { kPrimaryTarget = 0, kFallbackTarget = 1, kEmbedderTarget = 2 };
+// kPeerTarget marks connections to other gateway nodes (addresses come from
+// the ring topology, not from `targets`).
+enum TargetIndex : int { kPrimaryTarget = 0, kFallbackTarget = 1, kEmbedderTarget = 2, kPeerTarget = 3 };
 
 // One upstream endpoint: where it is, how to talk to it, and its breaker.
 struct UpstreamTarget {
@@ -47,20 +52,27 @@ std::optional<UpstreamTarget> resolve_target(std::string name, const std::string
 // State shared by every worker thread. Everything here is internally
 // synchronized; per-connection state lives in each worker's event loop.
 struct SharedState {
-  SharedState(Config c, TenantRegistry t, std::array<UpstreamTarget, 3> upstreams);
+  SharedState(Config c, ControlPlane::Options control_options, TenantRegistry base_tenants,
+              std::array<UpstreamTarget, 3> upstreams);
 
   const Config cfg;
-  const TenantRegistry tenants;
   const std::array<UpstreamTarget, 3> targets;
   const FailoverRouter router;
   const LexicalEmbedder lexical;
+  ControlPlane control;  // ring topology + tenant registry (hot-reloadable)
   RateLimiter limiter;
   ShardedLruCache<CachedResponse> cache;
   SemanticIndex semantic;
-  HashRing ring;
   Metrics metrics;
 
+  // Wakes the control thread (e.g. to resolve new peer hostnames right away).
+  void wake_control();
+  std::mutex wake_mu;
+  std::condition_variable wake_cv;
+  bool wake = false;
+
   [[nodiscard]] std::vector<BreakerReport> breaker_reports() const;
+  [[nodiscard]] ControlReport control_report() const;
 };
 
 // Starts cfg.workers epoll event loops (one SO_REUSEPORT listener each) and

@@ -53,6 +53,15 @@ struct BreakerReport {
   std::uint64_t trips = 0;
 };
 
+// Control-plane state for /metrics.
+struct ControlReport {
+  std::string node_id;
+  std::size_t ring_nodes = 0;
+  std::size_t ring_points = 0;
+  std::int64_t ring_version = 0;
+  std::int64_t tenants_version = 0;
+};
+
 // Process-wide counters shared by all worker threads (relaxed atomics).
 struct Metrics {
   static constexpr std::size_t kTargets = 3;  // primary, fallback, embedder
@@ -88,6 +97,18 @@ struct Metrics {
   std::atomic<std::uint64_t> semantic_stale{0};
   std::atomic<std::uint64_t> semantic_skipped{0};  // embedding unavailable
   std::atomic<std::uint64_t> semantic_salient_rejections{0};
+  std::atomic<std::uint64_t> semantic_mode_downgrades{0};  // tenant asked neural, no sidecar configured
+
+  // Multi-node routing.
+  std::atomic<std::uint64_t> forwarded{0};               // sent to the owner node
+  std::atomic<std::uint64_t> forward_received{0};        // served here for another ingress
+  std::atomic<std::uint64_t> forward_local_fallback{0};  // owner unreachable: served here
+  std::atomic<std::uint64_t> forward_failures{0};
+  std::atomic<std::uint64_t> ring_divergence{0};         // forwarded to us but our ring disagrees
+  std::atomic<std::uint64_t> hop_rejected_loop{0};
+  std::atomic<std::uint64_t> hop_rejected_untrusted{0};
+  std::atomic<std::uint64_t> admin_updates{0};
+  std::atomic<std::uint64_t> admin_rejected{0};
 
   LatencyHistogram latency_hit;
   LatencyHistogram latency_hit_stream;
@@ -95,17 +116,17 @@ struct Metrics {
   LatencyHistogram latency_miss_stream;
   LatencyHistogram latency_semantic_hit;
   LatencyHistogram latency_embedding;
+  LatencyHistogram latency_forwarded;
 
   void count_status(int status) noexcept;
 
-  [[nodiscard]] std::string render(const CacheStats& cache, std::string_view node_id,
-                                   std::size_t ring_nodes, std::size_t ring_points,
+  [[nodiscard]] std::string render(const CacheStats& cache, const ControlReport& control,
                                    std::size_t semantic_entries,
                                    const std::vector<BreakerReport>& breakers) const;
 
  private:
-  static constexpr std::array<int, 16> kTrackedStatuses = {200, 400, 401, 404, 405, 408, 411, 413,
-                                                           429, 431, 500, 502, 503, 504, 505, 0};
+  static constexpr std::array<int, 18> kTrackedStatuses = {200, 400, 401, 403, 404, 405, 408, 409, 411,
+                                                           413, 429, 431, 500, 502, 503, 504, 508, 0};
   std::array<std::atomic<std::uint64_t>, kTrackedStatuses.size()> statuses_{};
 };
 

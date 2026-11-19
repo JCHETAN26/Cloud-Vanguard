@@ -78,7 +78,7 @@ std::optional<TenantRegistry> TenantRegistry::from_json(std::string_view json, T
         error = "each tenant needs a non-empty string 'id'";
         return std::nullopt;
       }
-      TenantInfo info{id->get<std::string>(), r.defaults_};
+      TenantInfo info{id->get<std::string>(), r.defaults_, {}, {}, {}};
       if (!read_limit(t, "rpm", r.defaults_.rpm, info.limits.rpm, error) ||
           !read_limit(t, "tpm", r.defaults_.tpm, info.limits.tpm, error)) {
         error = "tenant '" + info.id + "': " + error;
@@ -118,9 +118,23 @@ std::optional<TenantRegistry> TenantRegistry::from_file(const std::string& path,
 
 std::optional<TenantInfo> TenantRegistry::resolve(std::string_view api_key) const {
   if (const auto it = by_key_.find(std::string(api_key)); it != by_key_.end()) return it->second;
+  if (!by_key_hash_.empty()) {
+    if (const auto it = by_key_hash_.find(Sha256::hex(api_key)); it != by_key_hash_.end()) return it->second;
+  }
   if (!allow_unknown_) return std::nullopt;
   // Never use the raw key as an id: ids appear in headers, logs and metrics.
-  return TenantInfo{"anon-" + Sha256::hex(api_key).substr(0, 12), defaults_};
+  return TenantInfo{"anon-" + Sha256::hex(api_key).substr(0, 12), defaults_, {}, {}, {}};
+}
+
+TenantRegistry TenantRegistry::with_overrides(const std::vector<TenantOverride>& overrides) const {
+  TenantRegistry r = *this;
+  for (const auto& o : overrides) {
+    for (auto& [key, info] : r.by_key_) {
+      if (info.id == o.info.id) info = o.info;
+    }
+    for (const auto& h : o.api_key_sha256) r.by_key_hash_[h] = o.info;
+  }
+  return r;
 }
 
 }  // namespace vanguard

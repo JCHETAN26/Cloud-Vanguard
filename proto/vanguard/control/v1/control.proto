@@ -1,0 +1,99 @@
+// CloudVanguard control-plane protocol (operator -> vanguard-proxy).
+//
+// This file is the contract between the Go operator and the C++ data plane.
+// The operator uses the generated Go types; vanguard-proxy speaks the proto3
+// canonical JSON mapping of these messages (lowerCamelCase field names, int64
+// as JSON strings or numbers, unset optionals omitted) so the proxy carries no
+// gRPC/protobuf runtime dependency.
+//
+// Transport (vanguard-proxy admin listener, ADMIN_PORT, default 9901):
+//
+//   PUT /admin/v1/ring      body RingConfig        -> ApplyResult
+//   PUT /admin/v1/tenants   body TenantPolicySet   -> ApplyResult
+//   PUT /admin/v1/config    body ControlDocument   -> ApplyResult
+//   GET /admin/v1/config                           -> ControlDocument (current)
+//
+// Every request must carry "Authorization: Bearer <ADMIN_TOKEN>" when the
+// proxy has ADMIN_TOKEN set. The same ControlDocument JSON is also written by
+// the operator into a ConfigMap mounted at CONTROL_FILE, which the proxy
+// polls and reloads (so a restarted pod converges without a push).
+//
+// Versioning: each RingConfig / TenantPolicySet carries a monotonically
+// increasing version. The proxy applies an update only if its version is
+// greater than the one it holds; an equal version is a no-op (200, applied =
+// false) and a lower one is rejected as stale (409). Version 0 means "manual
+// override": always applied, version unchanged. This makes pushes and file
+// reloads idempotent and order-independent.
+syntax = "proto3";
+
+package vanguard.control.v1;
+
+option go_package = "github.com/JCHETAN26/Cloud-Vanguard/operator-go/internal/controlpb;controlpb";
+
+// One gateway instance on the consistent-hash ring.
+message Node {
+  // Stable ring identity (the pod name, e.g. "vc-2"); must equal the
+  // instance's NODE_ID so it can recognise keys it owns.
+  string id = 1;
+  // host:port of the instance's data-plane listener, used for forwarding
+  // (e.g. "vc-2.vc-peers.default.svc.cluster.local:8080").
+  string address = 2;
+}
+
+// Full ring topology. Replaces the previous ring atomically.
+message RingConfig {
+  int64 version = 1;
+  // Virtual nodes per member (default 1000 when 0).
+  uint32 vnodes = 2;
+  repeated Node nodes = 3;
+}
+
+// Limits and cache behaviour for one tenant. Limits are cluster-wide; each of
+// N ring members enforces limit / N locally.
+message TenantPolicy {
+  string tenant_id = 1;
+  // Lower-case hex SHA-256 of each API key that authenticates as this
+  // tenant. Raw keys never leave the operator's Secret.
+  repeated string api_key_sha256 = 2;
+  int64 rpm_limit = 3;  // 0 = unlimited
+  int64 tpm_limit = 4;  // 0 = unlimited
+  optional string semantic_mode = 5;        // "lexical" | "neural" | "off"
+  optional double semantic_threshold = 6;   // (0, 1]
+  optional uint32 ttl_seconds = 7;          // cache TTL for this tenant's entries
+  // metadata.generation of the TenantCachePolicy this was rendered from;
+  // lets the operator confirm a specific generation is live.
+  int64 source_generation = 8;
+}
+
+// The complete set of dynamic tenant policies. Replaces the previous set
+// atomically (tenants absent from the set fall back to static configuration).
+message TenantPolicySet {
+  int64 version = 1;
+  repeated TenantPolicy tenants = 2;
+}
+
+// Everything the operator manages, as one document (file or PUT /admin/v1/config).
+message ControlDocument {
+  int64 version = 1;
+  RingConfig ring = 2;
+  TenantPolicySet tenants = 3;
+  // Set by the proxy in GET responses; ignored on writes.
+  string node_id = 4;
+}
+
+message ApplyResult {
+  bool applied = 1;      // false for a no-op (same version) or a rejection
+  int64 version = 2;     // version now active
+  string message = 3;
+  string node_id = 4;
+}
+
+message GetConfigRequest {}
+
+// gRPC view of the same operations (served today as HTTP/JSON on the admin port).
+service ControlPlane {
+  rpc ApplyRing(RingConfig) returns (ApplyResult);
+  rpc ApplyTenants(TenantPolicySet) returns (ApplyResult);
+  rpc ApplyDocument(ControlDocument) returns (ApplyResult);
+  rpc GetConfig(GetConfigRequest) returns (ControlDocument);
+}

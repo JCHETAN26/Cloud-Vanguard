@@ -6,6 +6,7 @@
 #include <list>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -176,9 +177,12 @@ class ShardedLruCache {
     return shard_for(key).get(key, now);
   }
 
+  // `ttl` overrides the cache-wide TTL for this entry (0 = never expires).
   bool put(std::string key, ValuePtr value, std::size_t charge,
-           SteadyClock::time_point now = SteadyClock::now()) {
-    const auto expires = ttl_.count() > 0 ? now + ttl_ : SteadyClock::time_point::max();
+           SteadyClock::time_point now = SteadyClock::now(),
+           std::optional<std::chrono::seconds> ttl = std::nullopt) {
+    const auto effective = ttl.value_or(ttl_);
+    const auto expires = effective.count() > 0 ? now + effective : SteadyClock::time_point::max();
     auto& shard = shard_for(key);
     return shard.put(std::move(key), std::move(value), charge, expires);
   }

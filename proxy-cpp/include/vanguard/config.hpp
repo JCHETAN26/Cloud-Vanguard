@@ -63,8 +63,18 @@ struct Config {
   std::size_t cache_max_entry_kb = 4096;
 
   std::string node_id = "local";
-  std::vector<std::string> ring_nodes;  // empty = {node_id}
+  std::vector<std::string> ring_nodes;  // ids only (legacy); prefer PEERS
+  std::string peers;                    // "id=host:port,..." static ring with forwarding addresses
   std::size_t ring_vnodes = 1000;
+
+  // Control plane (Phase 3).
+  std::string admin_addr = "127.0.0.1";  // operator deployments set 0.0.0.0 + ADMIN_TOKEN
+  std::uint16_t admin_port = 9901;       // 0 = disabled
+  std::string admin_token;               // required as Bearer on /admin/v1/* when set
+  std::string peer_token;                // authenticates X-Vanguard-Hop between nodes
+  std::string control_file;              // ControlDocument JSON to load + poll (ConfigMap mount)
+  unsigned peer_connect_timeout_ms = 250;
+  unsigned peer_timeout_ms = 60000;      // max wait for the owner's response headers
 
   unsigned client_idle_timeout_s = 60;
   std::size_t max_body_kb = 4096;
