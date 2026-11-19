@@ -96,6 +96,43 @@ const std::vector<Option>& options() {
        string_setter(&Config::upstream_url), string_getter(&Config::upstream_url)},
       {"UPSTREAM_API_KEY", "bearer token sent to the upstream", string_setter(&Config::upstream_api_key),
        [](const Config& c) { return c.upstream_api_key.empty() ? std::string("<unset>") : std::string("<set>"); }},
+      {"UPSTREAM_TTFB_TIMEOUT_MS", "primary: max wait for response headers before failing over",
+       uint_setter(&Config::upstream_ttfb_timeout_ms, 1, 3600000), uint_getter(&Config::upstream_ttfb_timeout_ms)},
+      {"FALLBACK_UPSTREAM_URL", "fallback upstream base URL (empty = no failover)",
+       string_setter(&Config::fallback_upstream_url), string_getter(&Config::fallback_upstream_url)},
+      {"FALLBACK_UPSTREAM_API_KEY", "bearer token sent to the fallback", string_setter(&Config::fallback_upstream_api_key),
+       [](const Config& c) { return c.fallback_upstream_api_key.empty() ? std::string("<unset>") : std::string("<set>"); }},
+      {"FALLBACK_MODEL", "model name to send to the fallback (empty = unchanged)",
+       string_setter(&Config::fallback_model), string_getter(&Config::fallback_model)},
+      {"FALLBACK_TTFB_TIMEOUT_MS", "fallback: max wait for response headers",
+       uint_setter(&Config::fallback_ttfb_timeout_ms, 1, 3600000), uint_getter(&Config::fallback_ttfb_timeout_ms)},
+      {"BREAKER_FAILURE_THRESHOLD", "consecutive failures that open a circuit",
+       uint_setter(&Config::breaker_failure_threshold, 1, 1000000), uint_getter(&Config::breaker_failure_threshold)},
+      {"BREAKER_OPEN_MS", "first open period (doubles after each failed probe)",
+       uint_setter(&Config::breaker_open_ms, 1, 3600000), uint_getter(&Config::breaker_open_ms)},
+      {"BREAKER_MAX_OPEN_MS", "cap for the exponential backoff",
+       uint_setter(&Config::breaker_max_open_ms, 1, 86400000), uint_getter(&Config::breaker_max_open_ms)},
+      {"SEMANTIC_MODE", "semantic cache encoder: lexical | neural | off", string_setter(&Config::semantic_mode),
+       string_getter(&Config::semantic_mode)},
+      {"EMBEDDER_URL", "OpenAI-compatible /v1/embeddings sidecar (SEMANTIC_MODE=neural)",
+       string_setter(&Config::embedder_url), string_getter(&Config::embedder_url)},
+      {"EMBEDDER_MODEL", "model name sent to the embedding sidecar", string_setter(&Config::embedder_model),
+       string_getter(&Config::embedder_model)},
+      {"EMBEDDER_TIMEOUT_MS", "max wait for an embedding before skipping semantic lookup",
+       uint_setter(&Config::embedder_timeout_ms, 1, 60000), uint_getter(&Config::embedder_timeout_ms)},
+      {"SEMANTIC_THRESHOLD", "min cosine similarity for a semantic hit (default 0.94 lexical, 0.96 neural)",
+       double_setter(&Config::semantic_threshold),
+       [](const Config& c) {
+         return c.semantic_threshold <= 0 ? std::string("auto") : double_getter(&Config::semantic_threshold)(c);
+       }},
+      {"SEMANTIC_MAX_CHARS", "longer final user messages skip semantic matching",
+       uint_setter(&Config::semantic_max_chars, 1, 1u << 24), uint_getter(&Config::semantic_max_chars)},
+      {"SEMANTIC_MAX_ENTRIES", "vectors kept in the semantic index",
+       uint_setter(&Config::semantic_max_entries, 1, 1u << 30), uint_getter(&Config::semantic_max_entries)},
+      {"SEMANTIC_MAX_PER_SCOPE", "vectors kept per scope (system prompt); bounds the scan cost",
+       uint_setter(&Config::semantic_max_per_scope, 1, 1u << 24), uint_getter(&Config::semantic_max_per_scope)},
+      {"SEMANTIC_DIM", "lexical encoder dimensions", uint_setter(&Config::semantic_dim, 16, 8192),
+       uint_getter(&Config::semantic_dim)},
       {"UPSTREAM_TIMEOUT_MS", "max idle wait for upstream bytes",
        uint_setter(&Config::upstream_timeout_ms, 100, 3600000), uint_getter(&Config::upstream_timeout_ms)},
       {"UPSTREAM_MAX_IDLE", "pooled idle upstream connections per worker",
@@ -187,6 +224,12 @@ std::optional<Config> load_config(int argc, const char* const* argv, std::string
   Config cfg;
   const auto& opts = options();
 
+  // Deprecated alias: EMBEDDER=lexical|remote|off (SEMANTIC_MODE wins if both are set).
+  if (const char* legacy = std::getenv("EMBEDDER"); legacy != nullptr && std::getenv("SEMANTIC_MODE") == nullptr) {
+    const std::string_view v = legacy;
+    cfg.semantic_mode = v == "remote" ? "neural" : std::string(v);
+  }
+
   for (const auto& opt : opts) {
     if (const char* v = std::getenv(opt.env); v != nullptr) {
       std::string err;
@@ -236,6 +279,29 @@ std::optional<Config> load_config(int argc, const char* const* argv, std::string
   std::string err;
   if (!parse_upstream_url(cfg.upstream_url, err)) {
     error = err;
+    return std::nullopt;
+  }
+  if (!cfg.fallback_upstream_url.empty() && !parse_upstream_url(cfg.fallback_upstream_url, err)) {
+    error = "FALLBACK_UPSTREAM_URL: " + err;
+    return std::nullopt;
+  }
+  if (cfg.semantic_mode != "lexical" && cfg.semantic_mode != "neural" && cfg.semantic_mode != "off") {
+    error = "SEMANTIC_MODE must be one of: lexical, neural, off";
+    return std::nullopt;
+  }
+  if (cfg.semantic_mode == "neural" && !parse_upstream_url(cfg.embedder_url, err)) {
+    error = "EMBEDDER_URL: " + err;
+    return std::nullopt;
+  }
+  if (cfg.semantic_threshold <= 0) {
+    cfg.semantic_threshold = cfg.semantic_mode == "neural" ? kNeuralDefaultThreshold : kLexicalDefaultThreshold;
+  }
+  if (cfg.semantic_threshold > 1) {
+    error = "SEMANTIC_THRESHOLD must be in (0, 1]";
+    return std::nullopt;
+  }
+  if (cfg.breaker_max_open_ms < cfg.breaker_open_ms) {
+    error = "BREAKER_MAX_OPEN_MS must be >= BREAKER_OPEN_MS";
     return std::nullopt;
   }
   if (cfg.node_id.empty()) {

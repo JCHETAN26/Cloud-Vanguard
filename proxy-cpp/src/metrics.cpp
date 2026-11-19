@@ -71,7 +71,8 @@ void Metrics::count_status(int status) noexcept {
 }
 
 std::string Metrics::render(const CacheStats& cache, std::string_view node_id, std::size_t ring_nodes,
-                            std::size_t ring_points) const {
+                            std::size_t ring_points, std::size_t semantic_entries,
+                            const std::vector<BreakerReport>& breakers) const {
   std::string out;
   out.reserve(8192);
 
@@ -125,6 +126,59 @@ std::string Metrics::render(const CacheStats& cache, std::string_view node_id, s
   counter(out, "vanguard_estimated_tokens_forwarded_total", "Estimated tokens sent upstream (TPM accounting).",
           load(estimated_tokens_forwarded));
 
+  counter(out, "vanguard_semantic_lookups_total", "Semantic index lookups after an exact miss.",
+          load(semantic_lookups));
+  counter(out, "vanguard_semantic_hits_total", "Requests served by a semantically similar cached prompt.",
+          load(semantic_hits));
+  counter(out, "vanguard_semantic_inserts_total", "Prompt vectors added to the semantic index.", load(semantic_inserts));
+  counter(out, "vanguard_semantic_stale_total", "Semantic matches whose cache entry had been evicted.",
+          load(semantic_stale));
+  counter(out, "vanguard_semantic_skipped_total", "Exact misses that skipped semantic lookup (embedder unavailable).",
+          load(semantic_skipped));
+  counter(out, "vanguard_semantic_salient_rejections_total",
+          "Matches above the threshold rejected because a salient token differed.",
+          load(semantic_salient_rejections));
+  gauge(out, "vanguard_semantic_entries", "Vectors in the semantic index.", static_cast<double>(semantic_entries));
+
+  counter(out, "vanguard_failovers_total", "Requests routed to the fallback upstream.", load(failovers));
+  counter(out, "vanguard_no_upstream_available_total", "Requests rejected because every circuit was open.",
+          load(no_upstream_available));
+  const char* const kUpstreamCounters[][2] = {
+      {"requests", "Attempts sent to each upstream."},
+      {"successes", "Attempts that returned non-5xx response headers."},
+      {"failures", "Attempts that failed (connect, 5xx, drop, protocol)."},
+      {"timeouts", "Attempts that timed out."},
+      {"circuit_rejections", "Attempts not sent because the circuit was open."}};
+  for (std::size_t m = 0; m < 5; ++m) {
+    const std::string name = std::string("vanguard_upstream_") + kUpstreamCounters[m][0] + "_total";
+    out.append("# HELP ").append(name).append(" ").append(kUpstreamCounters[m][1]).append("\n");
+    out.append("# TYPE ").append(name).append(" counter\n");
+    for (std::size_t t = 0; t < breakers.size() && t < kTargets; ++t) {
+      if (!breakers[t].configured) continue;
+      const auto& u = upstream[t];
+      const std::atomic<std::uint64_t>* fields[] = {&u.requests, &u.successes, &u.failures, &u.timeouts,
+                                                    &u.circuit_rejections};
+      line(out, name, "upstream=\"" + breakers[t].name + "\"", static_cast<double>(load(*fields[m])));
+    }
+  }
+  out.append("# HELP vanguard_circuit_state Breaker state per upstream (0 closed, 1 open, 2 half-open).\n");
+  out.append("# TYPE vanguard_circuit_state gauge\n");
+  for (const auto& b : breakers) {
+    if (b.configured) line(out, "vanguard_circuit_state", "upstream=\"" + b.name + "\"", b.state);
+  }
+  out.append("# HELP vanguard_circuit_open_seconds Length of the current/next open period (backoff).\n");
+  out.append("# TYPE vanguard_circuit_open_seconds gauge\n");
+  for (const auto& b : breakers) {
+    if (b.configured) line(out, "vanguard_circuit_open_seconds", "upstream=\"" + b.name + "\"", b.open_seconds);
+  }
+  out.append("# HELP vanguard_circuit_trips_total Transitions into the open state.\n");
+  out.append("# TYPE vanguard_circuit_trips_total counter\n");
+  for (const auto& b : breakers) {
+    if (b.configured) {
+      line(out, "vanguard_circuit_trips_total", "upstream=\"" + b.name + "\"", static_cast<double>(b.trips));
+    }
+  }
+
   gauge(out, "vanguard_ring_nodes", "Nodes on the consistent-hash ring.", static_cast<double>(ring_nodes));
   gauge(out, "vanguard_ring_points", "Virtual node points on the ring.", static_cast<double>(ring_points));
 
@@ -134,6 +188,10 @@ std::string Metrics::render(const CacheStats& cache, std::string_view node_id, s
   latency_hit_stream.render(out, "vanguard_request_duration_seconds", "cache=\"hit\",stream=\"true\"");
   latency_miss.render(out, "vanguard_request_duration_seconds", "cache=\"miss\",stream=\"false\"");
   latency_miss_stream.render(out, "vanguard_request_duration_seconds", "cache=\"miss\",stream=\"true\"");
+  latency_semantic_hit.render(out, "vanguard_request_duration_seconds", "cache=\"semantic_hit\",stream=\"any\"");
+  out.append("# HELP vanguard_embedding_duration_seconds Remote embedding call latency.\n");
+  out.append("# TYPE vanguard_embedding_duration_seconds histogram\n");
+  latency_embedding.render(out, "vanguard_embedding_duration_seconds", "");
   return out;
 }
 

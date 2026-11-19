@@ -185,11 +185,11 @@ def http_get(url: str) -> str:
         return resp.read().decode()
 
 
-def server_histogram(metrics_text: str, labels: str) -> dict:
-    """Server-side percentile upper bounds from vanguard_request_duration_seconds."""
+def server_histogram(metrics_text: str, labels: str, name: str = "vanguard_request_duration_seconds") -> dict:
+    """Server-side percentile upper bounds from a Prometheus histogram."""
     buckets = []
     for line in metrics_text.splitlines():
-        if line.startswith("vanguard_request_duration_seconds_bucket{") and labels in line:
+        if line.startswith(name + "_bucket{") and labels in line:
             le = line.split('le="')[1].split('"')[0]
             buckets.append((math.inf if le == "+Inf" else float(le), float(line.rsplit(" ", 1)[1])))
     buckets.sort()
