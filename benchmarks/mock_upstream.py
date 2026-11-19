@@ -25,7 +25,9 @@ Fault injection:
         drop   read the request, then close the connection without a response
         hang   never respond (holds the connection open)
   * GET /stats includes the monotonic arrival time of recent chat requests, so
-    the benchmark can measure the breaker's probe (backoff) intervals.
+    the benchmark can measure the breaker's probe (backoff) intervals, and the
+    W3C `traceparent` header of recent chat requests (None when absent), so
+    tests can verify trace-context propagation.
 """
 
 from __future__ import annotations
@@ -46,6 +48,7 @@ WORDS = (
 STATS = {"requests": 0, "stream_requests": 0, "errors_injected": 0, "in_flight": 0, "max_in_flight": 0, "faulted": 0}
 FAULT = {"mode": "ok", "delay_ms": 0, "status": 500}
 CHAT_TIMES: collections.deque = collections.deque(maxlen=2000)
+TRACEPARENTS: collections.deque = collections.deque(maxlen=20000)  # traceparent of recent chat requests
 
 
 class DropConnection(Exception):
@@ -179,6 +182,7 @@ async def handle_conn(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
             body = await reader.readexactly(length) if length else b""
 
             if method == "POST" and target.endswith("/chat/completions"):
+                TRACEPARENTS.append(headers.get("traceparent"))
                 STATS["in_flight"] += 1
                 STATS["max_in_flight"] = max(STATS["max_in_flight"], STATS["in_flight"])
                 try:
@@ -190,7 +194,8 @@ async def handle_conn(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
                 if target == "/healthz":
                     writer.write(http_response(200, "OK", b"ok\n", "text/plain"))
                 elif target == "/stats":
-                    stats = dict(STATS, name=args.name, fault=FAULT, chat_times=list(CHAT_TIMES), now=time.monotonic())
+                    stats = dict(STATS, name=args.name, fault=FAULT, chat_times=list(CHAT_TIMES), now=time.monotonic(),
+                                 traceparents=list(TRACEPARENTS))
                     writer.write(http_response(200, "OK", json.dumps(stats).encode()))
                 elif method == "POST" and target == "/admin/fault":
                     FAULT.clear()

@@ -1,0 +1,35 @@
+# Prometheus scrape configuration for CloudVanguard.
+# vanguard-proxy serves Prometheus text format on GET /metrics (data-plane port).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - rules.yml
+
+scrape_configs:
+  # Local development: proxies started by hand or by the benchmarks.
+  - job_name: vanguard-local
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["127.0.0.1:8080"]
+
+  # Kubernetes: pods rendered by the CacheCluster operator carry
+  # app.kubernetes.io/name=vanguard-proxy and a container port named "http".
+  - job_name: vanguard-kubernetes
+    metrics_path: /metrics
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+        regex: vanguard-proxy
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_container_port_name]
+        regex: http
+        action: keep
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+        target_label: cachecluster
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod

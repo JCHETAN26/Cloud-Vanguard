@@ -5,6 +5,7 @@
 #include <limits>
 
 #include "vanguard/strutil.hpp"
+#include "vanguard/tracing.hpp"
 
 namespace vanguard {
 namespace {
@@ -199,6 +200,24 @@ const std::vector<Option>& options() {
        uint_setter(&Config::peer_breaker_max_open_ms, 1, 3600000), uint_getter(&Config::peer_breaker_max_open_ms)},
       {"RING_VNODES", "virtual nodes per ring member", uint_setter(&Config::ring_vnodes, 1, 100000),
        uint_getter(&Config::ring_vnodes)},
+      {"OTEL_EXPORTER_OTLP_ENDPOINT", "OTLP/HTTP collector base URL; traces go to <url>/v1/traces (empty = tracing off)",
+       string_setter(&Config::otel_endpoint), string_getter(&Config::otel_endpoint)},
+      {"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "full OTLP/HTTP traces URL (overrides OTEL_EXPORTER_OTLP_ENDPOINT)",
+       string_setter(&Config::otel_traces_endpoint), string_getter(&Config::otel_traces_endpoint)},
+      {"OTEL_SERVICE_NAME", "service.name resource attribute", string_setter(&Config::otel_service_name),
+       string_getter(&Config::otel_service_name)},
+      {"OTEL_TRACES_SAMPLER", "always_on | always_off | traceidratio | parentbased_{always_on,always_off,traceidratio}",
+       string_setter(&Config::otel_sampler), string_getter(&Config::otel_sampler)},
+      {"OTEL_TRACES_SAMPLER_ARG", "sampling ratio in [0, 1] for the traceidratio samplers",
+       string_setter(&Config::otel_sampler_arg), string_getter(&Config::otel_sampler_arg)},
+      {"OTEL_BSP_SCHEDULE_DELAY", "max ms between span exports",
+       uint_setter(&Config::otel_bsp_schedule_delay_ms, 1, 3600000), uint_getter(&Config::otel_bsp_schedule_delay_ms)},
+      {"OTEL_BSP_MAX_QUEUE_SIZE", "ended spans buffered for export; more are dropped (and counted)",
+       uint_setter(&Config::otel_bsp_max_queue, 1, 1u << 24), uint_getter(&Config::otel_bsp_max_queue)},
+      {"OTEL_BSP_MAX_EXPORT_BATCH_SIZE", "spans per OTLP request",
+       uint_setter(&Config::otel_bsp_max_batch, 1, 1u << 20), uint_getter(&Config::otel_bsp_max_batch)},
+      {"OTEL_EXPORTER_OTLP_TIMEOUT", "OTLP export timeout in ms",
+       uint_setter(&Config::otel_export_timeout_ms, 1, 600000), uint_getter(&Config::otel_export_timeout_ms)},
       {"CLIENT_IDLE_TIMEOUT_S", "close idle client connections after N seconds",
        uint_setter(&Config::client_idle_timeout_s, 1, 86400), uint_getter(&Config::client_idle_timeout_s)},
       {"MAX_BODY_KB", "largest accepted request body", uint_setter(&Config::max_body_kb, 1, 1u << 20),
@@ -348,7 +367,17 @@ std::optional<Config> load_config(int argc, const char* const* argv, std::string
     error = "NODE_ID must not be empty";
     return std::nullopt;
   }
+  if (!tracing_options(cfg, err)) {
+    error = err;
+    return std::nullopt;
+  }
   return cfg;
+}
+
+std::optional<tracing::TracerOptions> tracing_options(const Config& cfg, std::string& error) {
+  return tracing::tracer_options(cfg.otel_endpoint, cfg.otel_traces_endpoint, cfg.otel_service_name, cfg.node_id,
+                                 cfg.otel_sampler, cfg.otel_sampler_arg, cfg.otel_bsp_schedule_delay_ms,
+                                 cfg.otel_bsp_max_queue, cfg.otel_bsp_max_batch, cfg.otel_export_timeout_ms, error);
 }
 
 std::string config_usage() {

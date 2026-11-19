@@ -101,7 +101,8 @@ bool secret_equals(std::string_view a, std::string_view b) {
 // Request headers that must not be copied onto a forwarded request.
 bool is_hop_header(std::string_view name) {
   for (const char* h : {"host", "connection", "keep-alive", "proxy-connection", "te", "upgrade", "transfer-encoding",
-                        "content-length", "x-vanguard-hop", "x-vanguard-peer-token", "x-vanguard-forwarded-by"}) {
+                        "content-length", "x-vanguard-hop", "x-vanguard-peer-token", "x-vanguard-forwarded-by",
+                        "traceparent"}) {
     if (iequals(name, h)) return true;
   }
   return false;
@@ -215,6 +216,10 @@ struct ClientConn final : Conn {
   const bool admin;         // accepted on the admin listener
   std::uint64_t upstream_id = 0;
   std::unique_ptr<InFlight> req;
+  // OpenTelemetry: the chat request's SERVER span, and the CLIENT span of the
+  // outbound call in progress (LLM upstream, embedder or peer node).
+  tracing::Span span;
+  tracing::Span child;
 };
 
 struct UpstreamConn final : Conn {
@@ -298,6 +303,13 @@ class Worker {
   void respond_error(ClientConn* c, int status, std::string_view message, std::string_view type,
                      std::string_view code, std::string_view extra_headers = {});
   void reject_rate_limited(ClientConn* c, const RateDecision& d, std::string_view which);
+
+  // Tracing (all no-ops when OTLP export is off).
+  void begin_request_span(ClientConn* c, const HttpRequest& req);
+  void end_request_span(ClientConn* c, std::string_view error_type = {});
+  void start_child_span(ClientConn* c, std::string_view name);
+  void end_child_span(ClientConn* c, int status, std::string_view error_type);
+  void note_status(ClientConn* c, int status);
   void flush_client(ClientConn* c);
   void finish_exchange(ClientConn* c);
 
@@ -310,7 +322,7 @@ class Worker {
   void continue_miss(ClientConn* c);
   void route_llm(ClientConn* c);
   void dispatch_llm(ClientConn* c, int target, bool probe);
-  std::string build_llm_request(const InFlight& r, int target) const;
+  std::string build_llm_request(const InFlight& r, int target, std::string_view traceparent) const;
   std::string routing_headers(const InFlight& r) const;
   bool on_llm_headers(UpstreamConn* u, ClientConn* c);
   void complete_llm(UpstreamConn* u, ClientConn* c);
@@ -514,6 +526,7 @@ void Worker::close_conn(Conn* c) {
   if (c->kind == ConnKind::kClient) {
     auto* cc = static_cast<ClientConn*>(c);
     s_.metrics.connections_active.fetch_sub(1, std::memory_order_relaxed);
+    end_request_span(cc, "client_closed");
     // A client going away aborts its upstream call: for streams this stops
     // token generation (and spend) as soon as nobody is listening.
     if (UpstreamConn* u = upstream(cc->upstream_id)) {
@@ -782,6 +795,7 @@ void Worker::respond(ClientConn* c, int status, std::string_view content_type, s
   c->out.append(head);
   c->out.append(body);
   s_.metrics.count_status(status);
+  note_status(c, status);
 }
 
 void Worker::respond_error(ClientConn* c, int status, std::string_view message, std::string_view type,
@@ -797,6 +811,58 @@ void Worker::reject_rate_limited(ClientConn* c, const RateDecision& d, std::stri
       never ? "request's estimated token cost exceeds the tenant's per-minute token limit"
             : "rate limit exceeded (" + std::string(which) + "); retry after " + std::to_string(secs) + "s";
   respond_error(c, 429, msg, "rate_limit_error", which == "rpm" ? "rpm_exceeded" : "tpm_exceeded", extra);
+}
+
+void Worker::begin_request_span(ClientConn* c, const HttpRequest& req) {
+  c->span = s_.tracer.start_span("POST /v1/chat/completions", tracing::SpanKind::kServer, req.header("traceparent"));
+  if (!c->span.recording()) return;
+  c->span.set_attribute("http.request.method", req.method);
+  c->span.set_attribute("http.route", "/v1/chat/completions");
+  c->span.set_attribute("url.path", req.path);
+  c->span.set_attribute("network.protocol.version", "1.1");
+  c->span.set_attribute("server.port", static_cast<std::int64_t>(s_.cfg.listen_port));
+  c->span.set_attribute("vanguard.node", s_.cfg.node_id);
+}
+
+void Worker::end_request_span(ClientConn* c, std::string_view error_type) {
+  if (!c->span.active()) return;
+  end_child_span(c, 0, error_type.empty() ? "aborted" : error_type);
+  if (!error_type.empty() && c->span.recording()) {
+    c->span.set_attribute("error.type", error_type);
+    c->span.set_status(tracing::StatusCode::kError, error_type);
+  }
+  s_.tracer.end(c->span);
+}
+
+void Worker::start_child_span(ClientConn* c, std::string_view name) {
+  end_child_span(c, 0, "retried");  // e.g. a stale pooled connection is retried once
+  c->child = s_.tracer.start_child(c->span, name, tracing::SpanKind::kClient);
+}
+
+void Worker::end_child_span(ClientConn* c, int status, std::string_view error_type) {
+  tracing::Span& sp = c->child;
+  if (!sp.active()) return;
+  if (sp.recording()) {
+    if (status > 0) sp.set_attribute("http.response.status_code", static_cast<std::int64_t>(status));
+    if (!error_type.empty()) {
+      sp.set_attribute("error.type", error_type);
+      sp.set_status(tracing::StatusCode::kError, error_type);
+    } else if (status >= 500) {
+      sp.set_attribute("error.type", std::to_string(status));
+      sp.set_status(tracing::StatusCode::kError);
+    }
+  }
+  s_.tracer.end(sp);
+}
+
+// HTTP semantic conventions: 5xx is an error for a SERVER span, 4xx is not.
+void Worker::note_status(ClientConn* c, int status) {
+  if (!c->span.recording()) return;
+  c->span.set_attribute("http.response.status_code", static_cast<std::int64_t>(status));
+  if (status >= 500) {
+    c->span.set_attribute("error.type", std::to_string(status));
+    c->span.set_status(tracing::StatusCode::kError);
+  }
 }
 
 void Worker::handle_request(ClientConn* c, HttpRequest& req) {
@@ -823,7 +889,11 @@ void Worker::handle_request(ClientConn* c, HttpRequest& req) {
       respond_error(c, 405, "use POST", "invalid_request_error", "method_not_allowed", "Allow: POST\r\n");
       return;
     }
+    if (s_.tracer.enabled()) begin_request_span(c, req);
     handle_chat(c, req, start);
+    // Answered synchronously (hit, 4xx, ...): the span ends now; otherwise it
+    // ends in finish_exchange() or close_conn().
+    if (!c->closed && c->state != ClientConn::State::kUpstream) end_request_span(c);
     return;
   }
   if (req.path == "/healthz") {
@@ -840,7 +910,8 @@ void Worker::handle_request(ClientConn* c, HttpRequest& req) {
       return;
     }
     respond(c, 200, "text/plain; version=0.0.4",
-            s_.metrics.render(s_.cache.stats(), s_.control_report(), s_.semantic.size(), s_.breaker_reports()));
+            s_.metrics.render(s_.cache.stats(), s_.control_report(), s_.semantic.size(), s_.breaker_reports()) +
+                s_.tracer.render_metrics());
     return;
   }
   respond_error(c, 404, "no route for " + req.path, "invalid_request_error", "not_found");
@@ -928,6 +999,7 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
     respond_error(c, 403, "X-Vanguard-Hop is reserved for gateway peers", "invalid_request_error", "untrusted_hop");
     return;
   }
+  if (c->span.recording()) c->span.set_attribute("vanguard.hop", static_cast<std::int64_t>(hop));
   if (decide_route(hop, true, true) == RouteAction::kRejectLoop) {
     inc(s_.metrics.hop_rejected_loop);
     respond_error(c, 508, "forwarding loop detected (X-Vanguard-Hop " + std::to_string(hop) + " > 1)",
@@ -950,6 +1022,8 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
     return;
   }
 
+  if (c->span.recording()) c->span.set_attribute("vanguard.tenant", tenant->id);
+
   // 2. Limits are cluster-wide; each of N ring members enforces 1/N. RPM is
   //    charged once, at the ingress hop (hits included: it protects the
   //    gateway); forwarded requests and local fallbacks were already counted.
@@ -959,6 +1033,7 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
   if (hop == 0 && !local_only) {
     if (const auto d = s_.limiter.check_request(tenant->id, limits, now); !d.allowed) {
       inc(s_.metrics.rate_limited_rpm);
+      if (c->span.recording()) c->span.set_attribute("vanguard.rate_limited", "rpm");
       reject_rate_limited(c, d, "rpm");
       return;
     }
@@ -984,6 +1059,12 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
   const auto cache_control = req.header("cache-control");
   r->bypass = contains_token(cache_control, "no-cache");
   r->store = !contains_token(cache_control, "no-store");
+  if (c->span.recording()) {
+    c->span.set_attribute("gen_ai.request.model", chat->model);
+    c->span.set_attribute("vanguard.stream", r->stream);
+    c->span.set_attribute("vanguard.cache.key", r->key_hex);
+    c->span.set_attribute("vanguard.ring.owner", r->owner);
+  }
 
   // 4. Route to the key's owner so every node shares one logical cache.
   if (!local_only) {
@@ -996,13 +1077,16 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
         if (permit.allowed && forward_to_peer(c, req, *peer, permit.probe, r)) return;
         if (permit.allowed) peer->breaker->record_failure(permit.probe, now);
         inc(s_.metrics.forward_local_fallback);
+        if (c->span.recording()) c->span.set_attribute("vanguard.route", "local_fallback");
         break;
       }
       case RouteAction::kServeLocalFallback:
         inc(s_.metrics.forward_local_fallback);
+        if (c->span.recording()) c->span.set_attribute("vanguard.route", "local_fallback");
         break;
       case RouteAction::kServeLocalDivergent:
         inc(s_.metrics.ring_divergence);
+        if (c->span.recording()) c->span.set_attribute("vanguard.route", "divergent");
         break;
       case RouteAction::kServeLocal:
       case RouteAction::kRejectLoop:
@@ -1010,6 +1094,15 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
     }
   }
   if (hop == 1) inc(s_.metrics.forward_received);
+  if (c->span.recording()) {
+    if (local_only) {
+      c->span.set_attribute("vanguard.route", "local_fallback");
+    } else if (hop == 1) {
+      c->span.set_attribute("vanguard.route", "owner_for_peer");
+    } else if (r->owner == topo_->self_id) {
+      c->span.set_attribute("vanguard.route", "local");
+    }
+  }
 
   // 5. Exact cache.
   if (r->bypass) {
@@ -1096,6 +1189,11 @@ void Worker::serve_hit(ClientConn* c, const CachedResponse& hit, const InFlight&
   c->out.append(hit.body);  // JSON body, or every SSE event pre-framed as chunks
 
   s_.metrics.count_status(200);
+  note_status(c, 200);
+  if (c->span.recording()) {
+    c->span.set_attribute("vanguard.cache.result", similarity ? "semantic_hit" : "hit");
+    if (similarity) c->span.set_attribute("vanguard.semantic.similarity", static_cast<double>(*similarity));
+  }
   const auto elapsed = Clock::now() - r.start;
   if (similarity) {
     inc(s_.metrics.semantic_hits);
@@ -1114,6 +1212,7 @@ void Worker::serve_hit(ClientConn* c, const CachedResponse& hit, const InFlight&
 // The exchange on `c` is over (response fully queued): serve whatever the
 // client pipelined next.
 void Worker::finish_exchange(ClientConn* c) {
+  end_request_span(c);
   c->req.reset();
   c->upstream_id = 0;
   c->state = c->keep_alive ? ClientConn::State::kReading : ClientConn::State::kClosing;
@@ -1129,11 +1228,20 @@ void Worker::finish_exchange(ClientConn* c) {
 bool Worker::forward_to_peer(ClientConn* c, HttpRequest& req, const PeerInfo& peer, bool probe,
                              std::unique_ptr<InFlight>& r) {
   std::string& w = r->peer_wire;
+  start_child_span(c, "peer.forward");
+  if (c->child.recording()) {
+    c->child.set_attribute("vanguard.peer.id", peer.id);
+    c->child.set_attribute("server.address", peer.address);
+    c->child.set_attribute("vanguard.breaker.probe", probe);
+    c->span.set_attribute("vanguard.route", "forward");
+    c->span.set_attribute("vanguard.cache.result", "forwarded");
+  }
   w.reserve(512 + req.body.size());
   w.append(req.method).append(" ").append(req.target).append(" HTTP/1.1\r\nHost: ").append(peer.address).append("\r\n");
   for (const auto& h : req.headers) {
     if (!is_hop_header(h.name)) w.append(h.name).append(": ").append(h.value).append("\r\n");
   }
+  if (c->child.active()) w.append("traceparent: ").append(c->child.traceparent()).append("\r\n");
   w.append("Content-Length: ").append(std::to_string(req.body.size()));
   w.append("\r\nX-Vanguard-Hop: 1\r\nX-Vanguard-Forwarded-By: ").append(s_.cfg.node_id).append("\r\n");
   if (!s_.cfg.peer_token.empty()) w.append("X-Vanguard-Peer-Token: ").append(s_.cfg.peer_token).append("\r\n");
@@ -1153,6 +1261,7 @@ bool Worker::forward_to_peer(ClientConn* c, HttpRequest& req, const PeerInfo& pe
     r->forwarded = false;
     r->peer_wire.clear();
     c->state = ClientConn::State::kReading;
+    end_child_span(c, 0, "connect_error");
     return false;
   }
   inc(s_.metrics.forwarded);
@@ -1211,6 +1320,10 @@ void Worker::relay_peer(UpstreamConn* u, ClientConn* c) {
     c->out.append(head);
     r.response_started = true;
     s_.metrics.count_status(status);
+    note_status(c, status);
+    if (c->span.recording()) {
+      if (const auto xc = u->parser.header("x-cache"); !xc.empty()) c->span.set_attribute("vanguard.peer.x_cache", xc);
+    }
   }
   if (r.response_started && !u->decoded.empty()) {
     if (r.relay_chunked) {
@@ -1228,6 +1341,7 @@ void Worker::relay_peer(UpstreamConn* u, ClientConn* c) {
   if (u->parser.done()) {
     if (r.relay_chunked) c->out.append(kLastHttpChunk);
     s_.metrics.latency_forwarded.observe(Clock::now() - r.start);
+    end_child_span(c, u->parser.status(), {});
     release_upstream(u);
     finish_exchange(c);
   }
@@ -1238,6 +1352,7 @@ void Worker::peer_failed(ClientConn* c, const std::shared_ptr<CircuitBreaker>& b
   inc(s_.metrics.forward_failures);
   if (timeout) inc(s_.metrics.upstream_timeouts);
   if (c == nullptr || !c->req) return;
+  end_child_span(c, 0, timeout ? "timeout" : "peer_error");
   if (c->req->response_started) {
     close_conn(c);  // owner died mid-response: nothing honest left to send
     return;
@@ -1256,6 +1371,7 @@ void Worker::serve_locally(ClientConn* c) {
   c->state = ClientConn::State::kReading;
   handle_chat(c, *original, start, /*local_only=*/true);
   if (c->closed) return;
+  if (c->state != ClientConn::State::kUpstream) end_request_span(c);
   if (c->state == ClientConn::State::kReading) {
     if (!c->keep_alive) c->state = ClientConn::State::kClosing;
     process_client(c);  // flush the synchronous response; serve pipelined requests
@@ -1301,17 +1417,25 @@ void Worker::start_embedding(ClientConn* c) {
 
 void Worker::dispatch_embedding(ClientConn* c, bool probe) {
   InFlight& r = *c->req;
+  const auto& t = target_of(kEmbedderTarget);
+  start_child_span(c, "embedding");
+  if (c->child.recording()) {
+    c->child.set_attribute("server.address", t.url.host);
+    c->child.set_attribute("server.port", static_cast<std::int64_t>(t.url.port));
+    c->child.set_attribute("gen_ai.request.model", s_.cfg.embedder_model);
+    c->child.set_attribute("vanguard.breaker.probe", probe);
+  }
   UpstreamConn* u = acquire_upstream(kEmbedderTarget);
   if (u == nullptr) {
     embedding_failed(c, probe, false);
     return;
   }
-  const auto& t = target_of(kEmbedderTarget);
   const std::string body = make_embedding_request(s_.cfg.embedder_model, r.semantic_text);
   std::string wire;
   wire.reserve(256 + body.size());
   wire.append("POST ").append(t.url.base_path).append("/v1/embeddings HTTP/1.1\r\nHost: ").append(t.host_header);
   wire.append("\r\nContent-Type: application/json\r\nContent-Length: ").append(std::to_string(body.size()));
+  if (c->child.active()) wire.append("\r\ntraceparent: ").append(c->child.traceparent());
   wire.append("\r\nConnection: keep-alive\r\n\r\n").append(body);
 
   u->client_id = c->id;
@@ -1336,8 +1460,10 @@ void Worker::complete_embedding(UpstreamConn* u, ClientConn* c) {
   disarm_timer(u);
   const bool probe = u->probe;
   u->probe = false;
-  auto vec = u->parser.status() == 200 ? parse_embedding_response(u->decoded) : std::vector<float>{};
+  const int status = u->parser.status();
+  auto vec = status == 200 ? parse_embedding_response(u->decoded) : std::vector<float>{};
   release_upstream(u);
+  end_child_span(c, status, vec.empty() ? std::string_view("invalid_response") : std::string_view());
   if (vec.empty()) {
     embedding_failed(c, probe, false);
     return;
@@ -1356,6 +1482,8 @@ void Worker::embedding_failed(ClientConn* c, bool probe, bool timeout) {
   inc(timeout ? tmetrics(kEmbedderTarget).timeouts : tmetrics(kEmbedderTarget).failures);
   inc(s_.metrics.semantic_skipped);
   if (c == nullptr || !c->req) return;
+  end_child_span(c, 0, timeout ? "timeout" : "embedding_error");
+  if (c->span.recording()) c->span.set_attribute("vanguard.semantic.skipped", true);
   c->req->semantic = false;  // no vector: exact-match-only for this request
   continue_miss(c);
 }
@@ -1373,6 +1501,7 @@ void Worker::continue_miss(ClientConn* c) {
       s_.limiter.check_tokens(r.tenant, r.limits, static_cast<double>(r.estimate), Clock::now());
   if (!d.allowed) {
     inc(s_.metrics.rate_limited_tpm);
+    if (c->span.recording()) c->span.set_attribute("vanguard.rate_limited", "tpm");
     reject_rate_limited(c, d, "tpm");
     finish_exchange(c);
     return;
@@ -1408,7 +1537,7 @@ void Worker::route_llm(ClientConn* c) {
   dispatch_llm(c, d.target, d.probe);
 }
 
-std::string Worker::build_llm_request(const InFlight& r, int target) const {
+std::string Worker::build_llm_request(const InFlight& r, int target, std::string_view traceparent) const {
   const auto& up = target_of(target);
   std::string rewritten;
   std::string_view body = r.body;
@@ -1423,6 +1552,7 @@ std::string Worker::build_llm_request(const InFlight& r, int target) const {
   out.append(r.stream ? "text/event-stream" : "application/json");
   out.append("\r\nContent-Length: ").append(std::to_string(body.size())).append("\r\n");
   if (!up.api_key.empty()) out.append("Authorization: Bearer ").append(up.api_key).append("\r\n");
+  if (!traceparent.empty()) out.append("traceparent: ").append(traceparent).append("\r\n");
   out.append("X-Vanguard-Tenant: ").append(r.tenant).append("\r\nConnection: keep-alive\r\n\r\n");
   out.append(body);
   return out;
@@ -1438,6 +1568,16 @@ std::string Worker::routing_headers(const InFlight& r) const {
 void Worker::dispatch_llm(ClientConn* c, int target, bool probe) {
   InFlight& r = *c->req;
   r.target = target;
+  start_child_span(c, "llm.upstream");
+  if (c->child.recording()) {
+    const auto& up = target_of(target);
+    c->child.set_attribute("http.request.method", "POST");
+    c->child.set_attribute("server.address", up.url.host);
+    c->child.set_attribute("server.port", static_cast<std::int64_t>(up.url.port));
+    c->child.set_attribute("vanguard.upstream.target", up.name);
+    c->child.set_attribute("vanguard.breaker.probe", probe);
+    c->child.set_attribute("vanguard.tokens.estimated", r.estimate);
+  }
   UpstreamConn* u = acquire_upstream(target);
   if (u == nullptr) {
     llm_attempt_failed(c, target, probe, 502, "cannot connect to " + target_of(target).name + " upstream",
@@ -1453,7 +1593,7 @@ void Worker::dispatch_llm(ClientConn* c, int target, bool probe) {
   u->paused = false;
   u->bytes_received = 0;
   u->out.clear();
-  u->out.append(build_llm_request(r, target));
+  u->out.append(build_llm_request(r, target, c->child.active() ? c->child.traceparent() : std::string()));
   const auto now = Clock::now();
   u->last_active = now;
   inc(s_.metrics.upstream_requests);
@@ -1468,6 +1608,7 @@ void Worker::llm_attempt_failed(ClientConn* c, int target, bool probe, int statu
   inc(timeout ? tmetrics(target).timeouts : tmetrics(target).failures);
   inc(timeout ? s_.metrics.upstream_timeouts : s_.metrics.upstream_errors);
   if (c == nullptr || !c->req) return;
+  end_child_span(c, 0, timeout ? std::string_view("timeout") : reason);
   InFlight& r = *c->req;
   if (s_.router.can_fail_over(static_cast<FailoverRouter::Target>(target), r.failed_over, r.response_started)) {
     r.primary_failed = true;
@@ -1523,6 +1664,7 @@ bool Worker::on_llm_headers(UpstreamConn* u, ClientConn* c) {
     head.append(c->keep_alive ? "Connection: keep-alive\r\n\r\n" : "Connection: close\r\n\r\n");
     c->out.append(head);
     r.response_started = true;
+    note_status(c, 200);
   }
   return true;
 }
@@ -1573,6 +1715,13 @@ void Worker::complete_llm(UpstreamConn* u, ClientConn* c) {
     s_.metrics.latency_miss.observe(elapsed);
   }
   inc(filled ? s_.metrics.cache_fills : s_.metrics.cache_fill_skipped);
+  end_child_span(c, status, {});
+  if (c->span.recording()) {
+    c->span.set_attribute("vanguard.cache.result", r.bypass ? "bypass" : "miss");
+    c->span.set_attribute("vanguard.cache.filled", filled);
+    if (r.target >= 0) c->span.set_attribute("vanguard.upstream", target_of(r.target).name);
+    if (r.failed_over) c->span.set_attribute("vanguard.failover.reason", r.failover_reason);
+  }
   if (filled && r.semantic && !r.embedding.empty()) {
     s_.semantic.insert(r.scope, r.guard, std::move(r.embedding), r.key, std::move(r.salient));
     inc(s_.metrics.semantic_inserts);
@@ -1867,7 +2016,11 @@ SharedState::SharedState(Config c, ControlPlane::Options control_options, Tenant
       control(std::move(control_options), std::move(base_tenants)),
       limiter(64),
       cache(cfg.cache_max_mb * 1024 * 1024, cfg.cache_shards, std::chrono::seconds(cfg.cache_ttl_s)),
-      semantic(SemanticIndex::Options{16, cfg.semantic_max_entries, cfg.semantic_max_per_scope}) {}
+      semantic(SemanticIndex::Options{16, cfg.semantic_max_entries, cfg.semantic_max_per_scope}),
+      tracer([this] {
+        std::string err;  // load_config() already validated the settings
+        return tracing_options(cfg, err).value_or(tracing::TracerOptions{});
+      }()) {}
 
 namespace {
 SnapshotMode snapshot_mode_of(const Config& cfg) {
@@ -2146,6 +2299,11 @@ int run_server(SharedState& state) {
                state.cfg.admin_port != 0 ? (state.cfg.admin_addr + ":" + std::to_string(state.cfg.admin_port)).c_str()
                                          : "");
 
+  state.tracer.start();
+  if (state.tracer.enabled()) {
+    std::fprintf(stderr, "vanguard-proxy: exporting traces to %s (OTLP/HTTP JSON)\n",
+                 state.tracer.options().traces_url.c_str());
+  }
   std::vector<std::thread> threads;
   threads.reserve(n + 1);
   for (auto& w : workers) threads.emplace_back([&w] { w->run(); });
@@ -2154,6 +2312,7 @@ int run_server(SharedState& state) {
   for (auto& t : threads) t.join();
   // Graceful shutdown (SIGTERM): persist the warm cache for the next start.
   if (!state.cfg.snapshot_path.empty() && state.cfg.snapshot_on_shutdown != 0) state.run_snapshot_save();
+  state.tracer.shutdown();  // export spans still queued
   std::fprintf(stderr, "vanguard-proxy: shutdown complete\n");
   return 0;
 }

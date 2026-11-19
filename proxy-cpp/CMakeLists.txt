@@ -60,7 +60,8 @@ add_library(vanguard_core STATIC
   src/embedding.cpp
   src/semantic_index.cpp
   src/control.cpp
-  src/snapshot.cpp)
+  src/snapshot.cpp
+  src/tracing.cpp)
 target_include_directories(vanguard_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(vanguard_core
   PUBLIC nlohmann_json::nlohmann_json Threads::Threads
@@ -104,7 +105,9 @@ if(VANGUARD_BUILD_TESTS)
     tests/test_circuit_breaker.cpp
     tests/test_semantic.cpp
     tests/test_control.cpp
-    tests/test_snapshot.cpp)
+    tests/test_snapshot.cpp
+    tests/test_tracing.cpp
+    tests/test_metrics.cpp)
   target_link_libraries(vanguard_tests PRIVATE vanguard_core vanguard_warnings GTest::gtest_main)
   target_compile_definitions(vanguard_tests PRIVATE VANGUARD_REPO_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/..")
   include(GoogleTest)
@@ -117,5 +120,10 @@ if(VANGUARD_BUILD_TESTS)
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../benchmarks/multinode_test.py
               --binary $<TARGET_FILE:vanguard-proxy> --base-port 18100)
     set_tests_properties(multinode_forwarding PROPERTIES TIMEOUT 180 RUN_SERIAL TRUE)
+    # OpenTelemetry trace propagation across a 2-node ring (Milestone 1).
+    add_test(NAME tracing_e2e
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/integration/test_tracing_e2e.py
+              --binary $<TARGET_FILE:vanguard-proxy> --base-port 18300)
+    set_tests_properties(tracing_e2e PROPERTIES TIMEOUT 180 RUN_SERIAL TRUE)
   endif()
 endif()

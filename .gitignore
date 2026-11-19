@@ -20,3 +20,6 @@ benchmarks/.venv/
 
 # Phase 4
 operator-go/bin/
+
+# Milestone 1: downloaded otelcol / promtool
+observability/.bin/

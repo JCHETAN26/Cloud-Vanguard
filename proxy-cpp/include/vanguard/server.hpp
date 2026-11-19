@@ -22,6 +22,7 @@
 #include "vanguard/semantic_index.hpp"
 #include "vanguard/snapshot.hpp"
 #include "vanguard/tenants.hpp"
+#include "vanguard/tracing.hpp"
 
 namespace vanguard {
 
@@ -65,6 +66,7 @@ struct SharedState {
   ShardedLruCache<CachedResponse> cache;
   SemanticIndex semantic;
   Metrics metrics;
+  tracing::Tracer tracer;  // OTLP span export (disabled without an endpoint)
 
   // Wakes the control thread (e.g. to resolve new peer hostnames right away).
   void wake_control();

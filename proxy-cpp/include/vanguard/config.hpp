@@ -90,6 +90,18 @@ struct Config {
   unsigned snapshot_on_shutdown = 1;
   unsigned snapshot_restore_on_start = 1;
 
+  // OpenTelemetry tracing (Milestone 1), standard OTEL_* names. No endpoint
+  // = tracing off (zero overhead, no headers added).
+  std::string otel_endpoint;         // OTEL_EXPORTER_OTLP_ENDPOINT (+ /v1/traces)
+  std::string otel_traces_endpoint;  // OTEL_EXPORTER_OTLP_TRACES_ENDPOINT (used as-is)
+  std::string otel_service_name = "vanguard-proxy";
+  std::string otel_sampler = "parentbased_always_on";
+  std::string otel_sampler_arg;      // ratio for *traceidratio samplers
+  unsigned otel_bsp_schedule_delay_ms = 5000;
+  std::size_t otel_bsp_max_queue = 2048;
+  std::size_t otel_bsp_max_batch = 512;
+  unsigned otel_export_timeout_ms = 10000;
+
   unsigned client_idle_timeout_s = 60;
   std::size_t max_body_kb = 4096;
 };
@@ -108,6 +120,12 @@ std::optional<UpstreamUrl> parse_upstream_url(std::string_view url, std::string&
 // Returns nullopt with `error` set on invalid input, or with error == "help"
 // when --help was requested.
 std::optional<Config> load_config(int argc, const char* const* argv, std::string& error);
+
+namespace tracing {
+struct TracerOptions;
+}
+// Tracer settings derived from the OTEL_* fields (validated by load_config).
+std::optional<tracing::TracerOptions> tracing_options(const Config& cfg, std::string& error);
 
 std::string config_usage();
 std::string config_summary(const Config& cfg);

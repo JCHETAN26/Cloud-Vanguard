@@ -1,0 +1,53 @@
+# Recording and alerting rules over vanguard-proxy's /metrics.
+# Validated by `promtool check rules` (observability/scripts/verify-prometheus.sh).
+groups:
+  - name: vanguard.recording
+    rules:
+      - record: vanguard:cache_hit_ratio:rate5m
+        expr: |
+          (sum by (job) (rate(vanguard_cache_hits_total[5m])) + sum by (job) (rate(vanguard_semantic_hits_total[5m])))
+          /
+          clamp_min(sum by (job) (rate(vanguard_cache_hits_total[5m])) + sum by (job) (rate(vanguard_semantic_hits_total[5m]))
+                    + sum by (job) (rate(vanguard_cache_misses_total[5m])), 1e-9)
+      - record: vanguard:request_duration_seconds:p99_5m
+        expr: histogram_quantile(0.99, sum by (job, cache, le) (rate(vanguard_request_duration_seconds_bucket[5m])))
+      - record: vanguard:request_duration_seconds:p50_5m
+        expr: histogram_quantile(0.50, sum by (job, cache, le) (rate(vanguard_request_duration_seconds_bucket[5m])))
+      - record: vanguard:upstream_failure_ratio:rate5m
+        expr: |
+          sum by (job, upstream) (rate(vanguard_upstream_failures_total[5m]) + rate(vanguard_upstream_timeouts_total[5m]))
+          /
+          clamp_min(sum by (job, upstream) (rate(vanguard_upstream_requests_total[5m])), 1e-9)
+
+  - name: vanguard.alerts
+    rules:
+      - alert: VanguardCircuitOpen
+        expr: max by (job, instance, upstream) (vanguard_circuit_state) == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.upstream }} circuit open on {{ $labels.instance }}"
+          description: The upstream breaker has been open for 2 minutes; traffic is on the fallback or failing fast.
+      - alert: VanguardNoUpstreamAvailable
+        expr: sum by (job, instance) (rate(vanguard_no_upstream_available_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Requests rejected with 503: every upstream circuit is open on {{ $labels.instance }}"
+      - alert: VanguardHitLatencyHigh
+        expr: vanguard:request_duration_seconds:p99_5m{cache="hit"} > 0.005
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cache-hit P99 above 5 ms ({{ $value | humanizeDuration }})"
+      - alert: VanguardTraceSpansDropped
+        expr: sum by (job, instance) (rate(vanguard_trace_spans_dropped_total[10m]) + rate(vanguard_trace_spans_failed_total[10m])) > 0
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Spans dropped or rejected by the OTLP endpoint on {{ $labels.instance }}"
+          description: Check the collector's health or raise OTEL_BSP_MAX_QUEUE_SIZE / lower the sampling ratio.
