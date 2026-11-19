@@ -63,6 +63,59 @@ Tests:
 - **QEMU data integrity:** volume bytes survive a qcow2 snapshot and restore.
 - **QMP:** the command protocol against a fake QMP server, plus real hot-plug into a QEMU VM running under TCG when
   `qemu-system-x86_64` is installed.
+- **Failure paths (Milestone 2):**
+  - A half-attached volume (block node without its device) is repaired on retry.
+  - A failed `device_add` rolls back its block node.
+  - Detaching from a VM that is gone succeeds, and attaching to one returns `NotFound`.
+  - Failed image operations leave no partial images.
+  - An attachment that can't be recorded is rolled back.
+  - A restore from a snapshot larger than `limit_bytes` returns `OUT_OF_RANGE`.
+  - Metadata writes are fsynced (file and directory).
+
+## Tracing (Milestone 2)
+
+`spec.tracing` turns on OpenTelemetry span export in every gateway pod:
+
+```yaml
+tracing:
+  enabled: true
+  endpoint: http://otel-collector.observability.svc.cluster.local:4318  # base URL; /v1/traces is appended
+  samplerRatio: "0.1"        # decimal string in [0, 1]; default "1"; parent-based
+  serviceName: vanguard-proxy
+  batch: {scheduleDelayMillis: 2000, maxQueueSize: 8192, maxExportBatchSize: 1024, exportTimeoutMillis: 5000}
+```
+
+- **Validation.** The API server rejects what the proxy would refuse, using OpenAPI patterns and CEL: an endpoint
+  required when enabled, `http://` only, no `/v1/traces` suffix, a ratio in [0, 1], batch ≤ queue (with the
+  proxy's defaults when either is unset). The operator re-validates; if an invalid spec gets through anyway, it
+  leaves the StatefulSet untouched and reports `TracingReady=False, reason InvalidConfig`.
+- **Rendering.** `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_TRACES_SAMPLER=parentbased_traceidratio`,
+  `OTEL_TRACES_SAMPLER_ARG`, `OTEL_SERVICE_NAME`, and `OTEL_BSP_*` / `OTEL_EXPORTER_OTLP_TIMEOUT` when set, in a fixed
+  order. The ratio is canonicalised (`"0.10"` and `"0.1"` render the same), and disabling removes every `OTEL_*`
+  variable.
+- **No rollout churn.** The StatefulSet carries `cache.cloudvanguard.io/pod-template-hash`, and the pod template is
+  rewritten only when the rendered template's hash changes. A steady-state reconcile sends **no writes at all**
+  (no StatefulSet update, no status patch). Trade-off: a manual edit of the pod template is not reverted until the
+  rendered template changes.
+- **Status.** Every config push returns the pod's `TracingStatus` (`vanguard.control.v1.ApplyResult.tracing`). The
+  operator reports `status.tracing` (`configuredReplicas`, `exportFailingReplicas`, `lastExportError`) and the
+  `TracingReady` condition:
+
+  | Reason | Meaning |
+  |---|---|
+  | `Exporting` (True) | Every ready pod exports with the current settings and its last export succeeded |
+  | `RolloutPending` | Some ready pods still run old settings (or a proxy that predates tracing) |
+  | `ExportFailing` | Some pods' last OTLP export failed (e.g. collector down) |
+  | `NoReadyPods` | Nothing has reported yet |
+  | `Disabled` | `spec.tracing.enabled` is false |
+  | `InvalidConfig` | The spec failed the operator's validation; pods were left as they were |
+
+  Export health has no Kubernetes event, so while tracing is enabled but not ready the cluster is re-checked every
+  30 s.
+- **Cross-language contract.** Two golden files are read by both test suites:
+  `internal/render/testdata/tracing_env_golden.json` (Go writes it; the C++ config loader must accept it) and
+  `../proto/vanguard/control/v1/testdata/apply_result_tracing.golden.json` (the C++ serializer writes it; Go parses
+  it strictly as `ApplyResult`).
 
 ## Development
 
@@ -90,7 +143,11 @@ protoc-gen-go v1.36.5.
   - Policy lifecycle: create, update, Secret key rotation, delete.
   - Conflicts, schema rejection and a missing `clusterRef`.
   - Deletion: owner references, and policies that report they are no longer applied.
-  - The published samples.
+  - The published samples, including `../deploy/samples/cachecluster-persistent.yaml` with tracing.
+  - Tracing: env propagation, exactly one template change per real change and none for unrelated or cosmetic
+    changes, `status.tracing`/`TracingReady` from pod reports, API rejection of invalid specs, and (fake client)
+    invalid specs leaving the StatefulSet untouched.
+  - A steady-state reconcile issues zero API writes.
 
 ### Known limits
 

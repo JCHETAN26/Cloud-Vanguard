@@ -74,16 +74,40 @@ func stableID(prefix, name string) string {
 func (s *Store) volMeta(id string) string  { return filepath.Join(s.Dir, "volumes", id+".json") }
 func (s *Store) snapMeta(id string) string { return filepath.Join(s.Dir, "snapshots", id+".json") }
 
+// writeJSON replaces a metadata file atomically and durably: write a temp
+// file, fsync it, rename it over the old one, fsync the directory. Without the
+// fsyncs a power loss can leave an empty or torn file behind the rename, and
+// every later operation on that volume would fail to parse it.
 func writeJSON(path string, v any) error {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	if _, err := f.Write(b); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return err
+	}
+	dir, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }
 
 func readJSON(path string, v any) error {
@@ -133,6 +157,14 @@ func (s *Store) CreateVolume(ctx context.Context, name string, sizeBytes int64, 
 	vol := &Volume{ID: id, Name: name, Format: format, Capacity: sizeBytes, SourceSnap: fromSnapshot,
 		Path: filepath.Join(s.Dir, "volumes", id+"."+format), Created: time.Now().UTC()}
 	_ = os.Remove(vol.Path) // leftover from a crash between image and metadata creation
+	// Any failure below must not leave a partial image behind: if the CO gives
+	// up instead of retrying, nothing would ever delete it.
+	ok := false
+	defer func() {
+		if !ok {
+			_ = os.Remove(vol.Path)
+		}
+	}()
 	if fromSnapshot != "" {
 		snap := &Snapshot{}
 		if err := readJSON(s.snapMeta(fromSnapshot), snap); err != nil {
@@ -155,6 +187,7 @@ func (s *Store) CreateVolume(ctx context.Context, name string, sizeBytes int64, 
 	if err := writeJSON(s.volMeta(id), vol); err != nil {
 		return nil, err
 	}
+	ok = true
 	return vol, nil
 }
 
@@ -219,7 +252,13 @@ func (s *Store) Attach(ctx context.Context, id, node string, multiNode bool) (st
 		vol.Attached = map[string]string{}
 	}
 	vol.Attached[node] = dev
-	return dev, writeJSON(s.volMeta(id), vol)
+	if err := writeJSON(s.volMeta(id), vol); err != nil {
+		// Not recorded means nothing would ever detach it: undo (best effort;
+		// a retry of the publish re-attaches idempotently).
+		_ = s.Attacher.Detach(ctx, vol, node)
+		return "", fmt.Errorf("record attachment of %s to %s: %w", id, node, err)
+	}
+	return dev, nil
 }
 
 // Detach unpublishes a volume from a node (idempotent).
@@ -275,9 +314,14 @@ func (s *Store) CreateSnapshot(ctx context.Context, name, sourceID string) (*Sna
 		Path: filepath.Join(s.Dir, "snapshots", id+"."+format), Created: time.Now().UTC()}
 	_ = os.Remove(snap.Path)
 	if err := s.Images.Convert(ctx, vol.Path, vol.Format, snap.Path, format, true); err != nil {
+		_ = os.Remove(snap.Path) // no partial snapshot images
 		return nil, err
 	}
-	return snap, writeJSON(s.snapMeta(id), snap)
+	if err := writeJSON(s.snapMeta(id), snap); err != nil {
+		_ = os.Remove(snap.Path)
+		return nil, err
+	}
+	return snap, nil
 }
 
 // GetSnapshot returns a snapshot by ID.

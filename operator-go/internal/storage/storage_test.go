@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -164,19 +165,39 @@ func TestStoreIdempotencyAndGuards(t *testing.T) {
 
 // --- QMP -------------------------------------------------------------------
 
-// fakeQMP is a minimal QMP server recording commands, tracking block nodes.
-func fakeQMP(t *testing.T) (socket string, commands *[]string) {
+// fakeQMP is a minimal QMP server recording commands and tracking block
+// nodes and devices, with failure injection.
+type fakeQMPState struct {
+	socket        string
+	mu            sync.Mutex
+	cmds          []string
+	nodes         map[string]bool
+	devices       map[string]bool
+	failDeviceAdd bool
+}
+
+func (f *fakeQMPState) commands() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return strings.Join(f.cmds, ",")
+}
+
+func (f *fakeQMPState) reset() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cmds = nil
+}
+
+func fakeQMP(t *testing.T) *fakeQMPState {
 	t.Helper()
 	dir, _ := os.MkdirTemp("", "qmp")
 	t.Cleanup(func() { os.RemoveAll(dir) })
-	socket = filepath.Join(dir, "vm.sock")
-	lis, err := net.Listen("unix", socket)
+	f := &fakeQMPState{socket: filepath.Join(dir, "vm.sock"), nodes: map[string]bool{}, devices: map[string]bool{}}
+	lis, err := net.Listen("unix", f.socket)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { lis.Close() })
-	var cmds []string
-	nodes := map[string]bool{}
 	go func() {
 		for {
 			conn, err := lis.Accept()
@@ -197,38 +218,55 @@ func fakeQMP(t *testing.T) (socket string, commands *[]string) {
 					if dec.Decode(&req) != nil {
 						return
 					}
-					cmds = append(cmds, req.Execute)
+					f.mu.Lock()
+					f.cmds = append(f.cmds, req.Execute)
 					switch req.Execute {
 					case "query-named-block-nodes":
-						var list []map[string]string
-						for n := range nodes {
+						list := []map[string]string{}
+						for n := range f.nodes {
 							list = append(list, map[string]string{"node-name": n})
 						}
 						b, _ := json.Marshal(map[string]any{"return": list})
 						fmt.Fprintln(w, string(b))
+					case "qom-list":
+						list := []map[string]string{{"name": "type", "type": "string"}}
+						for d := range f.devices {
+							list = append(list, map[string]string{"name": d, "type": "child<scsi-hd>"})
+						}
+						b, _ := json.Marshal(map[string]any{"return": list})
+						fmt.Fprintln(w, string(b))
 					case "blockdev-add":
-						nodes[req.Arguments["node-name"].(string)] = true
+						f.nodes[req.Arguments["node-name"].(string)] = true
 						fmt.Fprintln(w, `{"return":{}}`)
 					case "blockdev-del":
-						delete(nodes, req.Arguments["node-name"].(string))
+						delete(f.nodes, req.Arguments["node-name"].(string))
 						fmt.Fprintln(w, `{"return":{}}`)
+					case "device_add":
+						if f.failDeviceAdd {
+							fmt.Fprintln(w, `{"error":{"class":"GenericError","desc":"Bus 'scsi0.0' not found"}}`)
+						} else {
+							f.devices[req.Arguments["id"].(string)] = true
+							fmt.Fprintln(w, `{"return":{}}`)
+						}
 					case "device_del":
+						delete(f.devices, req.Arguments["id"].(string))
 						fmt.Fprintln(w, `{"event":"DEVICE_DELETED","data":{}}`)
 						fmt.Fprintln(w, `{"return":{}}`)
 					default:
 						fmt.Fprintln(w, `{"return":{}}`)
 					}
+					f.mu.Unlock()
 					w.Flush()
 				}
 			}(conn)
 		}
 	}()
-	return socket, &cmds
+	return f
 }
 
 func TestQMPAttacherProtocol(t *testing.T) {
-	socket, cmds := fakeQMP(t)
-	a := QMPAttacher{SocketTemplate: strings.Replace(socket, "vm", "{node}", 1)}
+	f := fakeQMP(t)
+	a := QMPAttacher{SocketTemplate: strings.Replace(f.socket, "vm", "{node}", 1)}
 	vol := &Volume{ID: "vol-0123456789abcdef0123", Format: FormatQCOW2, Path: "/images/v.qcow2"}
 	dev, err := a.Attach(ctx, vol, "vm")
 	if err != nil {
@@ -246,18 +284,200 @@ func TestQMPAttacherProtocol(t *testing.T) {
 	if err := a.Detach(ctx, vol, "vm"); err != nil {
 		t.Fatal(err)
 	}
-	got := strings.Join(*cmds, ",")
-	want := "qmp_capabilities,query-named-block-nodes,blockdev-add,device_add," +
-		"qmp_capabilities,query-named-block-nodes," +
+	want := "qmp_capabilities,query-named-block-nodes,qom-list,blockdev-add,device_add," +
+		"qmp_capabilities,query-named-block-nodes,qom-list," +
 		"qmp_capabilities,query-named-block-nodes,device_del,blockdev-del," +
 		"qmp_capabilities,query-named-block-nodes"
-	if got != want {
+	if got := f.commands(); got != want {
 		t.Fatalf("QMP command sequence:\n got  %s\n want %s", got, want)
 	}
 }
 
-// Real hypervisor: hot-plug a qcow2 volume into a running QEMU VM over QMP
-// and unplug it again. Uses TCG (software CPU), so /dev/kvm is not needed.
+// A block node left by an attempt that died between blockdev-add and
+// device_add is not "attached": a retry must add the device. A failed
+// device_add rolls back its block node.
+func TestQMPAttachRepairsAndRollsBack(t *testing.T) {
+	f := fakeQMP(t)
+	a := QMPAttacher{SocketTemplate: strings.Replace(f.socket, "vm", "{node}", 1)}
+	vol := &Volume{ID: "vol-feedfacecafebeef0000", Format: FormatRaw, Path: "/images/v.raw"}
+	nodeName, deviceID, _ := qmpNames(vol)
+
+	f.mu.Lock()
+	f.nodes[nodeName] = true // half-attached leftover
+	f.mu.Unlock()
+	if _, err := a.Attach(ctx, vol, "vm"); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	repaired := f.devices[deviceID]
+	f.mu.Unlock()
+	if !repaired || strings.Contains(f.commands(), "blockdev-add") {
+		t.Fatalf("half-attached volume not repaired (device present=%v, commands %s)", repaired, f.commands())
+	}
+
+	if err := a.Detach(ctx, vol, "vm"); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.failDeviceAdd = true
+	f.mu.Unlock()
+	if _, err := a.Attach(ctx, vol, "vm"); err == nil || !strings.Contains(err.Error(), "scsi0.0") {
+		t.Fatalf("device_add failure not reported: %v", err)
+	}
+	f.mu.Lock()
+	leftover := f.nodes[nodeName]
+	f.mu.Unlock()
+	if leftover {
+		t.Fatal("failed attach left its block node behind")
+	}
+}
+
+// A node whose VM is gone: detach succeeds (CSI requires it, or the volume
+// could never move), attach reports NotFound.
+func TestQMPVanishedVM(t *testing.T) {
+	dir := t.TempDir()
+	vol := &Volume{ID: "vol-0123456789abcdef0123", Format: FormatRaw, Path: "/images/v.raw"}
+	missing := QMPAttacher{SocketTemplate: filepath.Join(dir, "{node}.sock"), Timeout: time.Second}
+	if err := missing.Detach(ctx, vol, "gone"); err != nil {
+		t.Fatalf("detach from a VM without a socket: %v", err)
+	}
+	if _, err := missing.Attach(ctx, vol, "gone"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("attach to a missing VM: %v, want ErrNotFound", err)
+	}
+	// Stale socket file, nobody listening (QEMU killed): ECONNREFUSED.
+	stale := filepath.Join(dir, "dead.sock")
+	lis, err := net.ListenUnix("unix", &net.UnixAddr{Name: stale, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lis.SetUnlinkOnClose(false)
+	lis.Close()
+	if _, err := os.Stat(stale); err != nil {
+		t.Fatalf("stale socket not left behind: %v", err)
+	}
+	if err := missing.Detach(ctx, vol, "dead"); err != nil {
+		t.Fatalf("detach from a dead VM: %v", err)
+	}
+}
+
+// failingTool wraps an ImageTool and fails selected operations after doing
+// part of the work, like a qemu-img killed mid-way or a full disk.
+type failingTool struct {
+	ImageTool
+	failResize, failConvert bool
+}
+
+func (f failingTool) Resize(ctx context.Context, path, format string, size int64) error {
+	if f.failResize {
+		return errors.New("injected resize failure")
+	}
+	return f.ImageTool.Resize(ctx, path, format, size)
+}
+
+func (f failingTool) Convert(ctx context.Context, src, srcFormat, dst, dstFormat string, compress bool) error {
+	if f.failConvert {
+		_ = os.WriteFile(dst, []byte("partial"), 0o600) // half-written output
+		return errors.New("injected convert failure")
+	}
+	return f.ImageTool.Convert(ctx, src, srcFormat, dst, dstFormat, compress)
+}
+
+func images(t *testing.T, dir string) []string {
+	t.Helper()
+	var out []string
+	for _, sub := range []string{"volumes", "snapshots"} {
+		entries, _ := os.ReadDir(filepath.Join(dir, sub))
+		for _, e := range entries {
+			if !strings.HasSuffix(e.Name(), ".json") {
+				out = append(out, sub+"/"+e.Name())
+			}
+		}
+	}
+	return out
+}
+
+// Failed provisioning leaves no partial images (nothing would ever delete
+// them if the CO gives up), and a retry then succeeds.
+func TestFailedImageOperationsLeaveNoPartialFiles(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "images")
+	tool := &failingTool{ImageTool: RawFileTool{}}
+	store, err := NewStore(dir, tool, LocalAttacher{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, err := store.CreateVolume(ctx, "src", 1<<20, FormatRaw, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool.failConvert = true
+	if _, err := store.CreateSnapshot(ctx, "snap", src.ID); err == nil {
+		t.Fatal("snapshot succeeded despite convert failure")
+	}
+	if got := images(t, dir); len(got) != 1 {
+		t.Fatalf("partial snapshot left behind: %v", got)
+	}
+	tool.failConvert = false
+	snap, err := store.CreateSnapshot(ctx, "snap", src.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool.failResize = true // restore into a bigger volume: convert works, resize fails
+	if _, err := store.CreateVolume(ctx, "restored", 4<<20, FormatRaw, snap.ID); err == nil {
+		t.Fatal("restore succeeded despite resize failure")
+	}
+	if got := images(t, dir); len(got) != 2 {
+		t.Fatalf("partial restored volume left behind: %v", got)
+	}
+	tool.failResize = false
+	if v, err := store.CreateVolume(ctx, "restored", 4<<20, FormatRaw, snap.ID); err != nil || v.Capacity != 4<<20 {
+		t.Fatalf("retry after failure: %v %v", v, err)
+	}
+}
+
+// recordingAttacher records attach/detach calls.
+type recordingAttacher struct {
+	LocalAttacher
+	detached []string
+}
+
+func (r *recordingAttacher) Detach(_ context.Context, vol *Volume, node string) error {
+	r.detached = append(r.detached, vol.ID+"@"+node)
+	return nil
+}
+
+// An attachment that cannot be recorded is rolled back, so no device is left
+// that the driver does not know about.
+func TestAttachRollsBackWhenMetadataCannotBeWritten(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	dir := filepath.Join(t.TempDir(), "images")
+	att := &recordingAttacher{}
+	store, err := NewStore(dir, RawFileTool{}, att)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vol, err := store.CreateVolume(ctx, "v", 1<<20, FormatRaw, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	volumes := filepath.Join(dir, "volumes")
+	if err := os.Chmod(volumes, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(volumes, 0o750) //nolint:errcheck
+	if _, err := store.Attach(ctx, vol.ID, "node-1", false); err == nil {
+		t.Fatal("attach succeeded without recording it")
+	}
+	if len(att.detached) != 1 || att.detached[0] != vol.ID+"@node-1" {
+		t.Fatalf("attachment not rolled back: %v", att.detached)
+	}
+	os.Chmod(volumes, 0o750) //nolint:errcheck
+	if v, _ := store.GetVolume(vol.ID); len(v.Attached) != 0 {
+		t.Fatalf("metadata claims an attachment: %v", v.Attached)
+	}
+}
+
 func TestQMPAttachRealQEMU(t *testing.T) {
 	qemu, err := exec.LookPath("qemu-system-x86_64")
 	if err != nil || !QemuImgAvailable() {
@@ -320,6 +540,33 @@ func TestQMPAttachRealQEMU(t *testing.T) {
 	}
 	if raw := query("query-named-block-nodes", map[string]any{"flat": true}); bytes.Contains(raw, []byte(nodeName)) {
 		t.Fatalf("block node still present after detach: %s", raw)
+	}
+
+	// Half-attached leftover (blockdev-add done, device_add never ran, as if
+	// the driver died in between): the next attach must plug the device in.
+	query("blockdev-add", map[string]any{"node-name": nodeName, "driver": vol.Format,
+		"file": map[string]any{"driver": "file", "filename": vol.Path}})
+	if raw := query("query-block", nil); bytes.Contains(raw, []byte(deviceID)) {
+		t.Fatalf("setup: device present before repair: %s", raw)
+	}
+	if _, err := store.Attach(ctx, vol.ID, "node-1", false); err != nil {
+		t.Fatalf("attach over a half-attached leftover: %v", err)
+	}
+	if raw := query("query-block", nil); !bytes.Contains(raw, []byte(deviceID)) {
+		t.Fatalf("half-attached volume not repaired: %s", raw)
+	}
+	if err := store.Detach(ctx, vol.ID, "node-1"); err != nil {
+		t.Fatalf("detach after repair: %v", err)
+	}
+
+	// The VM dies with the volume attached: detach must still succeed.
+	if _, err := store.Attach(ctx, vol.ID, "node-1", false); err != nil {
+		t.Fatal(err)
+	}
+	_ = vm.Process.Kill()
+	_ = vm.Wait()
+	if err := store.Detach(ctx, vol.ID, "node-1"); err != nil {
+		t.Fatalf("detach from a dead VM: %v", err)
 	}
 	if err := store.DeleteVolume(vol.ID); err != nil {
 		t.Fatal(err)
