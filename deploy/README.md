@@ -7,8 +7,8 @@
 | `docker/Dockerfile.csi` | `csi-driver` + `csictl` with `qemu-img`, e2fsprogs, util-linux |
 | `csi/driver.yaml` | `CSIDriver`, RBAC, controller Deployment (driver + provisioner, attacher, snapshotter and resizer sidecars), node DaemonSet (privileged, node-driver-registrar) |
 | `csi/storageclass.yaml` | `cloudvanguard-block` StorageClass (raw images, Retain, expandable) + `VolumeSnapshotClass` |
-| `kustomization.yaml` | `kubectl apply -k deploy/`: CRDs + operator + CSI driver |
-| `samples/cachecluster-persistent.yaml` | 3-replica CacheCluster with per-pod 1Gi block volumes, a tenant policy, a VolumeSnapshot |
+| `kustomization.yaml` | `kubectl apply -k deploy/`: CRDs + operator + CSI driver + OpenTelemetry Collector (`../observability/otel-collector`, namespace `observability`) |
+| `samples/cachecluster-persistent.yaml` | 3-replica CacheCluster with per-pod 1Gi block volumes and tracing to the in-cluster collector (10% sampled), a tenant policy, a VolumeSnapshot |
 | `kind/kind-config.yaml` | single-host kind cluster sharing the image directory with the node plugin |
 | `scripts/env-check.sh` | which tools are present (kvm, loop, mount caps, docker, kind, k3s, kubectl, qemu-img, qemu-system, go) |
 | `scripts/e2e-kind.sh` | builds the images, creates kind, installs everything, verifies a warm pod restart; **exits 3 when docker/kind are missing** |

@@ -6,6 +6,7 @@ Cross-component tests that exercise more than one part of the monorepo. Unit tes
 | Path | What | How it runs |
 |---|---|---|
 | `integration/test_tracing_e2e.py` | OpenTelemetry trace propagation across a 2-node ring: caller → gateway → peer → LLM upstream, sampling, status mapping, exporter metrics, tracing-off | `ctest` (`tracing_e2e`, Linux), or by hand with `--binary` |
+| `integration/test_http_robustness.py` | Hostile inputs (invalid UTF-8 in paths/headers/bodies, wrongly typed JSON, malformed control documents) must never take the proxy down | `ctest` (`http_robustness`, Linux) |
 
 Related suites that predate this directory and stay where the build already references them:
 

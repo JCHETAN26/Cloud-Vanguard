@@ -11,6 +11,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +33,7 @@ import (
 const (
 	ConditionAvailable    = "Available"
 	ConditionConfigSynced = "ConfigSynced"
+	ConditionTracingReady = "TracingReady"
 )
 
 // CacheClusterReconciler runs a ring of vanguard-proxy pods and keeps every
@@ -44,7 +46,10 @@ const (
 type CacheClusterReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	Pusher Pusher
+	// APIReader reads straight from the API server (mgr.GetAPIReader()); used
+	// where the informer cache may lag behind our own writes. Nil = Client.
+	APIReader client.Reader
+	Pusher    Pusher
 	// ResyncPeriod re-pushes periodically to repair drift (e.g. a pod that
 	// restarted and has not re-read its ConfigMap yet).
 	ResyncPeriod time.Duration
@@ -69,6 +74,11 @@ func (r *CacheClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if !cc.DeletionTimestamp.IsZero() {
 		return ctrl.Result{}, nil
 	}
+
+	// Invalid tracing settings (only possible if the CRD's validation was
+	// bypassed) never reach the pods: the StatefulSet is left as it is and the
+	// problem is reported on TracingReady.
+	tracing, tracingErr := render.ResolveTracing(cc)
 
 	token, err := r.ensureAdminSecret(ctx, cc)
 	if err != nil {
@@ -111,10 +121,17 @@ func (r *CacheClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	sts := &appsv1.StatefulSet{ObjectMeta: r.meta(cc, render.StatefulSetName(cc))}
-	if err := r.apply(ctx, cc, sts, func(o client.Object) {
-		render.MutateStatefulSet(o.(*appsv1.StatefulSet), cc)
-	}); err != nil {
-		return ctrl.Result{}, err
+	if tracingErr == nil {
+		if err := r.apply(ctx, cc, sts, func(o client.Object) {
+			render.MutateStatefulSet(o.(*appsv1.StatefulSet), cc, tracing)
+		}); err != nil {
+			return ctrl.Result{}, err
+		}
+	} else {
+		log.Info("invalid spec.tracing: StatefulSet left unchanged", "error", tracingErr.Error())
+		if err := r.Get(ctx, client.ObjectKeyFromObject(sts), sts); err != nil && !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Push to ready pods.
@@ -123,8 +140,9 @@ func (r *CacheClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	var endpoints []string
-	var synced int32
+	var synced, tracingConfigured, tracingFailing int32
 	var pushErr error
+	var lastExportError string
 	for i := range pods.Items {
 		pod := &pods.Items[i]
 		if !podReady(pod) || pod.Status.PodIP == "" || !pod.DeletionTimestamp.IsZero() {
@@ -135,20 +153,30 @@ func (r *CacheClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if r.Pusher == nil {
 			continue
 		}
-		active, err := r.Pusher.Push(ctx, fmt.Sprintf("%s:%d", pod.Status.PodIP, render.AdminPort), token, docJSON)
+		res, err := r.Pusher.Push(ctx, fmt.Sprintf("%s:%d", pod.Status.PodIP, render.AdminPort), token, docJSON)
 		if err != nil {
 			log.Info("config push failed", "pod", pod.Name, "error", err.Error())
 			pushErr = err
 			continue
 		}
-		if active >= version {
+		if res.ActiveVersion >= version {
 			synced++
+		}
+		if tracingErr == nil && tracing.Matches(res.Tracing) {
+			tracingConfigured++
+		}
+		if ts := res.Tracing; ts.GetEnabled() && ts.GetLastExportFailed() {
+			tracingFailing++
+			if lastExportError == "" {
+				lastExportError = pod.Name + ": " + ts.GetLastExportError()
+			}
 		}
 	}
 	sort.Strings(endpoints)
 
-	// Status.
-	patch := client.MergeFrom(cc.DeepCopy())
+	// Status. Written only when it changed: a steady-state reconcile is free.
+	original := cc.DeepCopy()
+	patch := client.MergeFrom(original)
 	cc.Status.ObservedGeneration = cc.Generation
 	cc.Status.ReadyReplicas = sts.Status.ReadyReplicas
 	cc.Status.Endpoints = endpoints
@@ -164,14 +192,65 @@ func (r *CacheClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		msg += ": " + pushErr.Error()
 	}
 	setCondition(&cc.Status.Conditions, cc.Generation, ConditionConfigSynced, syncedOK, "Pushed", "PushPending", msg)
-	if err := r.Status().Patch(ctx, cc, patch); err != nil {
-		return ctrl.Result{}, err
+	tracingReady := r.tracingStatus(cc, tracing, tracingErr, int32(len(endpoints)), tracingConfigured, tracingFailing,
+		lastExportError)
+	if !equality.Semantic.DeepEqual(original.Status, cc.Status) {
+		if err := r.Status().Patch(ctx, cc, patch); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	if !syncedOK {
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
+	// Export health is polled (it changes without any Kubernetes event).
+	if tracing.Enabled && !tracingReady && (r.ResyncPeriod == 0 || r.ResyncPeriod > 30*time.Second) {
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
 	return ctrl.Result{RequeueAfter: r.ResyncPeriod}, nil
+}
+
+// tracingStatus fills status.tracing and the TracingReady condition from the
+// pods' reports, and returns whether tracing is ready.
+func (r *CacheClusterReconciler) tracingStatus(cc *cachev1alpha1.CacheCluster, t render.Tracing, invalid error,
+	ready, configured, failing int32, lastErr string) bool {
+	set := func(ok bool, reason, msg string) {
+		c := metav1.Condition{Type: ConditionTracingReady, Status: metav1.ConditionFalse, Reason: reason, Message: msg,
+			ObservedGeneration: cc.Generation}
+		if ok {
+			c.Status = metav1.ConditionTrue
+		}
+		meta.SetStatusCondition(&cc.Status.Conditions, c)
+	}
+	if invalid != nil {
+		// Keep the last valid status.tracing: it still describes the pods.
+		set(false, "InvalidConfig", invalid.Error())
+		return false
+	}
+	cc.Status.Tracing = &cachev1alpha1.TracingStatus{
+		Enabled:               t.Enabled,
+		TracesEndpoint:        t.TracesURL,
+		SamplerRatio:          t.RatioText,
+		ConfiguredReplicas:    configured,
+		ExportFailingReplicas: failing,
+		LastExportError:       lastErr,
+	}
+	switch {
+	case !t.Enabled:
+		set(false, "Disabled", "spec.tracing.enabled is false")
+		return false
+	case ready == 0:
+		set(false, "NoReadyPods", "no ready pods to report tracing state")
+	case configured < ready:
+		set(false, "RolloutPending", fmt.Sprintf("%d/%d ready pods export with the current tracing settings", configured, ready))
+	case failing > 0:
+		set(false, "ExportFailing", fmt.Sprintf("%d/%d ready pods failed their last OTLP export (%s)", failing, ready, lastErr))
+	default:
+		set(true, "Exporting", fmt.Sprintf("%d/%d ready pods export to %s, sampling ratio %s", configured, ready,
+			t.TracesURL, t.RatioText))
+		return true
+	}
+	return false
 }
 
 // nextVersion returns the version for a document with content `hash`: the
@@ -233,7 +312,20 @@ func (r *CacheClusterReconciler) ensureAdminSecret(ctx context.Context, cc *cach
 		return "", err
 	}
 	if err := r.Create(ctx, secret); err != nil {
-		return "", err
+		if !apierrors.IsAlreadyExists(err) {
+			return "", err
+		}
+		// Created by an earlier reconcile that our cache has not seen yet (or by
+		// another operator replica): read the real one instead of failing.
+		reader := r.APIReader
+		if reader == nil {
+			reader = r.Client
+		}
+		existing := &corev1.Secret{}
+		if err := reader.Get(ctx, key, existing); err != nil {
+			return "", err
+		}
+		return string(existing.Data[render.AdminTokenKey]), nil
 	}
 	return token, nil
 }

@@ -270,6 +270,18 @@ std::optional<Sampler> parse_sampler(std::string_view name) {
   return std::nullopt;
 }
 
+std::string_view sampler_name(Sampler s) noexcept {
+  switch (s) {
+    case Sampler::kAlwaysOn: return "always_on";
+    case Sampler::kAlwaysOff: return "always_off";
+    case Sampler::kTraceIdRatio: return "traceidratio";
+    case Sampler::kParentAlwaysOn: return "parentbased_always_on";
+    case Sampler::kParentAlwaysOff: return "parentbased_always_off";
+    case Sampler::kParentTraceIdRatio: return "parentbased_traceidratio";
+  }
+  return "parentbased_always_on";
+}
+
 bool ratio_sampled(const TraceId& id, double ratio) noexcept {
   if (!(ratio > 0.0)) return false;
   if (ratio >= 1.0) return true;
@@ -557,6 +569,11 @@ std::size_t Tracer::export_batch(std::vector<SpanData>& spans) {
       failed_.fetch_add(n, std::memory_order_relaxed);
       export_errors_.fetch_add(1, std::memory_order_relaxed);
     }
+    {
+      std::lock_guard lock(last_mu_);
+      last_export_failed_ = !res.ok;
+      last_export_error_ = res.ok ? std::string() : res.error;
+    }
   }
   return sent;
 }
@@ -602,6 +619,20 @@ Tracer::Stats Tracer::stats() const noexcept {
   s.batches = batches_.load(std::memory_order_relaxed);
   s.export_errors = export_errors_.load(std::memory_order_relaxed);
   return s;
+}
+
+Tracer::Status Tracer::status() const {
+  Status st;
+  st.enabled = opts_.enabled;
+  if (opts_.enabled) st.traces_endpoint = opts_.traces_url;
+  st.sampler = std::string(sampler_name(opts_.sampler));
+  st.sampler_ratio = opts_.ratio;
+  st.service_name = opts_.service_name;
+  st.stats = stats();
+  std::lock_guard lock(last_mu_);
+  st.last_export_failed = last_export_failed_;
+  st.last_export_error = last_export_error_;
+  return st;
 }
 
 std::string Tracer::render_metrics() const {

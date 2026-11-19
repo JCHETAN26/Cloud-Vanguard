@@ -1,8 +1,10 @@
-# Everything: CRDs + operator + CSI driver.  kubectl apply -k deploy/
+# Everything: CRDs + operator + CSI driver + OpenTelemetry Collector.
+#   kubectl apply -k deploy/
 # (Samples are applied separately: kubectl apply -f deploy/samples/)
 resources:
   - ../operator-go/config/default
   - csi
+  - ../observability/otel-collector
 images:
   - name: ghcr.io/jchetan26/cloudvanguard-operator
     newTag: "0.4.0"

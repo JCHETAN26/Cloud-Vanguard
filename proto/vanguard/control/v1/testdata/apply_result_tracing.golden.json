@@ -1,0 +1,18 @@
+{
+  "applied": true,
+  "message": "applied",
+  "nodeId": "vc-0",
+  "tracing": {
+    "enabled": true,
+    "exportErrors": "0",
+    "lastExportFailed": false,
+    "sampler": "parentbased_traceidratio",
+    "samplerRatio": 0.25,
+    "serviceName": "vanguard-prod",
+    "spansDropped": "0",
+    "spansExported": "0",
+    "spansFailed": "0",
+    "tracesEndpoint": "http://otel-collector.observability:4318/v1/traces"
+  },
+  "version": "42"
+}

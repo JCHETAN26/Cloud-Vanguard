@@ -77,8 +77,15 @@ func (s *controllerServer) CreateVolume(ctx context.Context, req *csipb.CreateVo
 		if snap == nil {
 			return nil, status.Error(codes.InvalidArgument, "only snapshot content sources are supported")
 		}
-		if _, err := s.d.Store.GetSnapshot(snap.GetSnapshotId()); err != nil {
+		source, err := s.d.Store.GetSnapshot(snap.GetSnapshotId())
+		if err != nil {
 			return nil, status.Errorf(codes.NotFound, "source snapshot %s: %v", snap.GetSnapshotId(), err)
+		}
+		// The restored volume is at least as large as the snapshot; that must
+		// still respect the caller's limit.
+		if l := req.GetCapacityRange().GetLimitBytes(); l > 0 && source.Size > l {
+			return nil, status.Errorf(codes.OutOfRange, "snapshot %s is %d bytes, above limit_bytes %d",
+				source.ID, source.Size, l)
 		}
 		fromSnap = snap.GetSnapshotId()
 	}

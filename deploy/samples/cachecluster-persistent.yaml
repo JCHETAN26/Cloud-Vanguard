@@ -13,6 +13,20 @@ spec:
     storageClassName: cloudvanguard-block
     size: 1Gi                    # two snapshot slots of ~512Mi each
     snapshotIntervalSeconds: 60
+  # OpenTelemetry tracing (Milestone 2). Rendered into each pod's OTEL_*
+  # environment; changing it rolls the pods, leaving it unchanged never does.
+  # Progress: kubectl get cc vc -o jsonpath='{.status.tracing}' and the
+  # TracingReady condition (Exporting / RolloutPending / ExportFailing / ...).
+  tracing:
+    enabled: true
+    endpoint: http://otel-collector.observability.svc.cluster.local:4318   # base URL; /v1/traces is appended
+    samplerRatio: "0.1"          # parent-based: an incoming traceparent's decision wins
+    serviceName: vanguard-proxy  # each pod adds service.instance.id = its pod name
+    batch:
+      scheduleDelayMillis: 2000
+      maxQueueSize: 8192
+      maxExportBatchSize: 1024   # must not exceed maxQueueSize (validated by the API server)
+      exportTimeoutMillis: 5000
 ---
 apiVersion: v1
 kind: Secret

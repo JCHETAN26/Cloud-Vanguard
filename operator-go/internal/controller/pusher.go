@@ -3,12 +3,14 @@ package controller
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
+
+	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/JCHETAN26/Cloud-Vanguard/operator-go/internal/controlpb"
 )
 
 // Pusher delivers a control document to one vanguard-proxy pod. The
@@ -16,9 +18,15 @@ import (
 // after restarts); pushing makes changes live in milliseconds instead of
 // waiting for the kubelet's ConfigMap sync (up to ~1 minute).
 type Pusher interface {
-	// Push PUTs `doc` to http://<endpoint>/admin/v1/config and returns the
-	// version the pod reports as active.
-	Push(ctx context.Context, endpoint, token string, doc []byte) (int64, error)
+	// Push PUTs `doc` to http://<endpoint>/admin/v1/config and returns what
+	// the pod reports: the active version and its tracing state.
+	Push(ctx context.Context, endpoint, token string, doc []byte) (PushResult, error)
+}
+
+// PushResult is a pod's answer to a push (vanguard.control.v1.ApplyResult).
+type PushResult struct {
+	ActiveVersion int64
+	Tracing       *controlpb.TracingStatus // nil from proxies that predate tracing
 }
 
 // HTTPPusher is the production Pusher.
@@ -32,36 +40,34 @@ func NewHTTPPusher() *HTTPPusher {
 	return &HTTPPusher{Client: &http.Client{Timeout: 3 * time.Second}}
 }
 
-type applyResult struct {
-	Applied bool   `json:"applied"`
-	Version string `json:"version"`
-	Message string `json:"message"`
-}
+// The proxy answers with ApplyResult in proto3 JSON. Unknown fields are
+// ignored so a newer proxy can add fields without breaking older operators.
+var applyResultJSON = protojson.UnmarshalOptions{DiscardUnknown: true}
 
-func (p *HTTPPusher) Push(ctx context.Context, endpoint, token string, doc []byte) (int64, error) {
+func (p *HTTPPusher) Push(ctx context.Context, endpoint, token string, doc []byte) (PushResult, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, "http://"+endpoint+"/admin/v1/config", bytes.NewReader(doc))
 	if err != nil {
-		return 0, err
+		return PushResult{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := p.Client.Do(req)
 	if err != nil {
-		return 0, err
+		return PushResult{}, err
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-	var res applyResult
-	_ = json.Unmarshal(body, &res)
-	version, _ := strconv.ParseInt(res.Version, 10, 64)
+	res := &controlpb.ApplyResult{}
+	parseErr := applyResultJSON.Unmarshal(body, res)
 	switch resp.StatusCode {
-	case http.StatusOK:
-		return version, nil
-	case http.StatusConflict:
-		// The pod already runs a newer document (e.g. pushed by a newer
+	case http.StatusOK, http.StatusConflict:
+		// 409: the pod already runs a newer document (e.g. pushed by a newer
 		// operator replica); it is ahead, not broken.
-		return version, nil
+		if parseErr != nil {
+			return PushResult{}, fmt.Errorf("push to %s: unreadable ApplyResult: %w", endpoint, parseErr)
+		}
+		return PushResult{ActiveVersion: res.GetVersion(), Tracing: res.GetTracing()}, nil
 	default:
-		return 0, fmt.Errorf("push to %s: HTTP %d: %s", endpoint, resp.StatusCode, res.Message)
+		return PushResult{}, fmt.Errorf("push to %s: HTTP %d: %s", endpoint, resp.StatusCode, res.GetMessage())
 	}
 }

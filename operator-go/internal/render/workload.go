@@ -1,6 +1,9 @@
 package render
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -19,6 +22,10 @@ const (
 	// where the raw block device appears in the container.
 	WarmCacheVolume     = "warm-cache"
 	WarmCacheDevicePath = "/dev/vanguard-cache"
+	// TemplateHashAnnotation (on the StatefulSet) records the hash of the pod
+	// template the operator last rendered. The template is only rewritten when
+	// that hash changes, so steady-state reconciles send no StatefulSet update.
+	TemplateHashAnnotation = "cache.cloudvanguard.io/pod-template-hash"
 )
 
 // CacheMiB converts spec.maxCacheBytes to the proxy's CACHE_MAX_MB (rounded up, min 1).
@@ -59,19 +66,71 @@ func MutateClientService(svc *corev1.Service, cc *cachev1alpha1.CacheCluster) {
 	svc.Spec.Ports = servicePorts()[:1]
 }
 
-// MutateStatefulSet shapes the gateway StatefulSet. Selector and serviceName
-// are immutable and only set on creation.
-func MutateStatefulSet(sts *appsv1.StatefulSet, cc *cachev1alpha1.CacheCluster) {
+// MutateStatefulSet shapes the gateway StatefulSet. Selector, serviceName and
+// volumeClaimTemplates are immutable and only set on creation. The pod
+// template is replaced only when its rendered hash differs from the one
+// recorded on the StatefulSet: the API server fills in defaults (probe
+// timeouts, DNS policy, ...), so comparing our sparse template with the stored
+// one would always differ and send an Update on every reconcile.
+//
+// Trade-off: a manual edit of the pod template is not reverted until the
+// rendered template itself changes.
+func MutateStatefulSet(sts *appsv1.StatefulSet, cc *cachev1alpha1.CacheCluster, tracing Tracing) {
 	labels := Labels(cc)
 	sts.Labels = labels
 	if sts.CreationTimestamp.IsZero() {
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
 		sts.Spec.ServiceName = PeerServiceName(cc)
+		// Pods are independent ring members: start and stop them in parallel.
+		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 	}
 	sts.Spec.Replicas = ptr.To(cc.Spec.Replicas)
-	// Pods are independent ring members: start and stop them in parallel.
-	sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 
+	if p := cc.Spec.Persistence; p != nil && sts.CreationTimestamp.IsZero() {
+		size := resource.MustParse("1Gi")
+		if p.Size != nil {
+			size = *p.Size
+		}
+		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{{
+			ObjectMeta: metav1.ObjectMeta{Name: WarmCacheVolume, Labels: labels},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+				VolumeMode:       ptr.To(corev1.PersistentVolumeBlock),
+				StorageClassName: p.StorageClassName,
+				Resources:        corev1.VolumeResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceStorage: size}},
+			},
+		}}
+		// Keep warm caches when pods are scaled away or the cluster is deleted.
+		sts.Spec.PersistentVolumeClaimRetentionPolicy = &appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy{
+			WhenDeleted: appsv1.RetainPersistentVolumeClaimRetentionPolicyType,
+			WhenScaled:  appsv1.RetainPersistentVolumeClaimRetentionPolicyType,
+		}
+	}
+
+	template := PodTemplate(cc, tracing)
+	hash := TemplateHash(template)
+	if sts.CreationTimestamp.IsZero() || sts.Annotations[TemplateHashAnnotation] != hash {
+		sts.Spec.Template = template
+		if sts.Annotations == nil {
+			sts.Annotations = map[string]string{}
+		}
+		sts.Annotations[TemplateHashAnnotation] = hash
+	}
+}
+
+// TemplateHash is a stable digest of a rendered pod template.
+func TemplateHash(t corev1.PodTemplateSpec) string {
+	b, err := json.Marshal(t) // struct fields in declaration order, map keys sorted
+	if err != nil {
+		panic(err) // a PodTemplateSpec always marshals
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:8])
+}
+
+// PodTemplate renders the gateway pod template.
+func PodTemplate(cc *cachev1alpha1.CacheCluster, tracing Tracing) corev1.PodTemplateSpec {
+	labels := Labels(cc)
 	vnodes := cc.Spec.Vnodes
 	if vnodes <= 0 {
 		vnodes = DefaultVnodes
@@ -99,28 +158,8 @@ func MutateStatefulSet(sts *appsv1.StatefulSet, cc *cachev1alpha1.CacheCluster) 
 			corev1.EnvVar{Name: "SNAPSHOT_MODE", Value: "block"},
 			corev1.EnvVar{Name: "SNAPSHOT_INTERVAL_S", Value: strconv.Itoa(int(p.SnapshotIntervalSeconds))})
 		devices = []corev1.VolumeDevice{{Name: WarmCacheVolume, DevicePath: WarmCacheDevicePath}}
-		// volumeClaimTemplates are immutable: only set when the StatefulSet is created.
-		if sts.CreationTimestamp.IsZero() {
-			size := resource.MustParse("1Gi")
-			if p.Size != nil {
-				size = *p.Size
-			}
-			sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{{
-				ObjectMeta: metav1.ObjectMeta{Name: WarmCacheVolume, Labels: labels},
-				Spec: corev1.PersistentVolumeClaimSpec{
-					AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-					VolumeMode:       ptr.To(corev1.PersistentVolumeBlock),
-					StorageClassName: p.StorageClassName,
-					Resources:        corev1.VolumeResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceStorage: size}},
-				},
-			}}
-			// Keep warm caches when pods are scaled away or the cluster is deleted.
-			sts.Spec.PersistentVolumeClaimRetentionPolicy = &appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy{
-				WhenDeleted: appsv1.RetainPersistentVolumeClaimRetentionPolicyType,
-				WhenScaled:  appsv1.RetainPersistentVolumeClaimRetentionPolicyType,
-			}
-		}
 	}
+	env = append(env, tracing.Env()...)
 	probe := func(delay int32) *corev1.Probe {
 		return &corev1.Probe{
 			ProbeHandler:        corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{Path: "/healthz", Port: intstr.FromString("http")}},
@@ -130,8 +169,7 @@ func MutateStatefulSet(sts *appsv1.StatefulSet, cc *cachev1alpha1.CacheCluster) 
 	}
 	memory := resource.NewQuantity((CacheMiB(cc)+128)*mib, resource.BinarySI)
 
-	sts.Spec.Template.Labels = labels
-	sts.Spec.Template.Spec = corev1.PodSpec{
+	return corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: labels}, Spec: corev1.PodSpec{
 		Containers: []corev1.Container{{
 			Name:  "vanguard-proxy",
 			Image: cc.Spec.Image,
@@ -167,7 +205,7 @@ func MutateStatefulSet(sts *appsv1.StatefulSet, cc *cachev1alpha1.CacheCluster) 
 				},
 			}},
 		}},
-	}
+	}}
 }
 
 func secretRef(cc *cachev1alpha1.CacheCluster) *corev1.EnvVarSource {

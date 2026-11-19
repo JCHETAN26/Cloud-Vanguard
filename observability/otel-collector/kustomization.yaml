@@ -1,0 +1,14 @@
+# In-cluster OpenTelemetry Collector for CacheCluster.spec.tracing.endpoint
+# (http://otel-collector.observability.svc.cluster.local:4318). Same pipeline
+# as config.yaml (validated by observability/scripts/verify-collector.sh).
+# Included by deploy/kustomization.yaml; standalone: kubectl apply -k observability/otel-collector
+namespace: observability
+resources:
+  - collector.yaml
+configMapGenerator:
+  - name: otel-collector-config
+    files:
+      - config.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: cloudvanguard

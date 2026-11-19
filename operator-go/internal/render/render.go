@@ -22,25 +22,25 @@ import (
 )
 
 const (
-	DataPort         = 8080
-	AdminPort        = 9901
-	ControlKey       = "control.json"
-	ControlMountPath = "/etc/vanguard/control"
-	AdminTokenKey    = "token"
+	DataPort          = 8080
+	AdminPort         = 9901
+	ControlKey        = "control.json"
+	ControlMountPath  = "/etc/vanguard/control"
+	AdminTokenKey     = "token"
 	HashAnnotation    = "cache.cloudvanguard.io/config-hash"
 	VersionAnnotation = "cache.cloudvanguard.io/config-version"
-	ManagedByLabel   = "app.kubernetes.io/managed-by"
-	ManagedByValue   = "cloudvanguard-operator"
-	InstanceLabel    = "app.kubernetes.io/instance"
-	NameLabel        = "app.kubernetes.io/name"
-	DefaultVnodes    = 1000
+	ManagedByLabel    = "app.kubernetes.io/managed-by"
+	ManagedByValue    = "cloudvanguard-operator"
+	InstanceLabel     = "app.kubernetes.io/instance"
+	NameLabel         = "app.kubernetes.io/name"
+	DefaultVnodes     = 1000
 )
 
-func StatefulSetName(cc *cachev1alpha1.CacheCluster) string     { return cc.Name }
-func PeerServiceName(cc *cachev1alpha1.CacheCluster) string     { return cc.Name + "-peers" }
-func ClientServiceName(cc *cachev1alpha1.CacheCluster) string   { return cc.Name }
+func StatefulSetName(cc *cachev1alpha1.CacheCluster) string      { return cc.Name }
+func PeerServiceName(cc *cachev1alpha1.CacheCluster) string      { return cc.Name + "-peers" }
+func ClientServiceName(cc *cachev1alpha1.CacheCluster) string    { return cc.Name }
 func ControlConfigMapName(cc *cachev1alpha1.CacheCluster) string { return cc.Name + "-control" }
-func AdminSecretName(cc *cachev1alpha1.CacheCluster) string     { return cc.Name + "-admin" }
+func AdminSecretName(cc *cachev1alpha1.CacheCluster) string      { return cc.Name + "-admin" }
 
 // Labels identifies every object (and pod) belonging to a cluster.
 func Labels(cc *cachev1alpha1.CacheCluster) map[string]string {
