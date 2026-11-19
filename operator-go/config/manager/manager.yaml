@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudvanguard-system
+  labels:
+    app.kubernetes.io/name: cloudvanguard-operator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudvanguard-operator
+  namespace: cloudvanguard-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudvanguard-operator
+  namespace: cloudvanguard-system
+  labels:
+    app.kubernetes.io/name: cloudvanguard-operator
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudvanguard-operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudvanguard-operator
+    spec:
+      serviceAccountName: cloudvanguard-operator
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: manager
+          image: ghcr.io/jchetan26/cloudvanguard-operator:0.3.0
+          args: ["--leader-elect", "--health-probe-bind-address=:8081", "--metrics-bind-address=:8080"]
+          ports:
+            - {name: metrics, containerPort: 8080}
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8081}
+            initialDelaySeconds: 15
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8081}
+            initialDelaySeconds: 5
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}

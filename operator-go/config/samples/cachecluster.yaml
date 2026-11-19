@@ -1,0 +1,38 @@
+apiVersion: cache.cloudvanguard.io/v1alpha1
+kind: CacheCluster
+metadata:
+  name: vc
+  namespace: default
+spec:
+  replicas: 3
+  upstreamPrimary: http://vllm.inference.svc.cluster.local:8000
+  upstreamFallback: http://openai-shim.inference.svc.cluster.local:8000
+  vnodes: 1000            # default
+  maxCacheBytes: 1Gi
+  defaultTtlSeconds: 3600
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: acme-api-keys
+  namespace: default
+stringData:
+  api-keys: |
+    sk-acme-prod-1
+    sk-acme-prod-2
+---
+apiVersion: cache.cloudvanguard.io/v1alpha1
+kind: TenantCachePolicy
+metadata:
+  name: acme
+  namespace: default
+spec:
+  tenantId: acme
+  clusterRef: vc
+  apiKeysSecretRef:
+    name: acme-api-keys
+  rpmLimit: 1200          # cluster-wide; each of 3 pods enforces 400
+  tpmLimit: 500000
+  semanticMode: neural
+  semanticThreshold: "0.97"
+  ttlSeconds: 900

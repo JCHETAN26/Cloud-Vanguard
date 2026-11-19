@@ -104,6 +104,7 @@ if(VANGUARD_BUILD_TESTS)
     tests/test_semantic.cpp
     tests/test_control.cpp)
   target_link_libraries(vanguard_tests PRIVATE vanguard_core vanguard_warnings GTest::gtest_main)
+  target_compile_definitions(vanguard_tests PRIVATE VANGUARD_REPO_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/..")
   include(GoogleTest)
   gtest_discover_tests(vanguard_tests DISCOVERY_TIMEOUT 60)
 

@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <fstream>
 #include <map>
+#include <sstream>
 #include <set>
 #include <string>
 #include <vector>
@@ -236,4 +238,40 @@ TEST(ControlPlane, DocumentsApplyAllOrNothing) {
   ASSERT_TRUE(round) << err;
   EXPECT_EQ(round->ring->nodes.size(), 3u);
   EXPECT_EQ(round->tenants->tenants.at(0).tenant_id, "t");
+}
+
+// ---------------------------------------------------------------------------
+// Cross-language contract: the operator's rendered document (Go, protojson)
+// must be accepted by the data plane. The file is produced by
+// operator-go/internal/render TestGoldenControlDocument.
+// ---------------------------------------------------------------------------
+
+TEST(ControlPlaneGolden, AcceptsTheOperatorsRenderedDocument) {
+  std::ifstream in(std::string(VANGUARD_REPO_ROOT) + "/operator-go/internal/render/testdata/control_golden.json");
+  ASSERT_TRUE(in.good()) << "golden file missing";
+  std::stringstream ss;
+  ss << in.rdbuf();
+  std::string err;
+  const auto doc = vanguard::parse_control_document(ss.str(), err);
+  ASSERT_TRUE(doc) << err;
+  EXPECT_EQ(doc->version, 42);
+  ASSERT_TRUE(doc->ring && doc->tenants);
+  EXPECT_EQ(doc->ring->vnodes, 1000u);
+  ASSERT_EQ(doc->ring->nodes.size(), 3u);
+  EXPECT_EQ(doc->ring->nodes[0].address, "vc-0.vc-peers.prod.svc.cluster.local:8080");
+
+  auto cp = make("vc-1", vanguard::TenantRegistry::from_json(R"({"tenants":[]})", {600, 0}, err).value());
+  const auto out = cp.apply_document(*doc);
+  ASSERT_TRUE(out.applied) << out.message;
+  EXPECT_EQ(cp.topology().load()->self_id, "vc-1");
+  EXPECT_NE(cp.topology().load()->find("vc-1"), nullptr);
+  const auto acme = cp.tenants().load()->resolve("sk-acme-2");  // raw key never left the operator
+  ASSERT_TRUE(acme);
+  EXPECT_EQ(acme->id, "acme");
+  EXPECT_EQ(acme->limits.rpm, 1200);
+  EXPECT_EQ(acme->limits.tpm, 50000);
+  EXPECT_EQ(acme->semantic_mode.value_or(""), "neural");
+  EXPECT_DOUBLE_EQ(acme->semantic_threshold.value_or(0), 0.97);
+  EXPECT_EQ(acme->ttl_seconds.value_or(0), 600u);
+  EXPECT_FALSE(cp.tenants().load()->resolve("sk-unknown"));
 }

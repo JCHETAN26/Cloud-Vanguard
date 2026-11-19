@@ -1,0 +1,3 @@
+resources:
+  - bases/cache.cloudvanguard.io_cacheclusters.yaml
+  - bases/cache.cloudvanguard.io_tenantcachepolicies.yaml

@@ -1,0 +1,44 @@
+{
+  "ring": {
+    "nodes": [
+      {
+        "address": "vc-0.vc-peers.prod.svc.cluster.local:8080",
+        "id": "vc-0"
+      },
+      {
+        "address": "vc-1.vc-peers.prod.svc.cluster.local:8080",
+        "id": "vc-1"
+      },
+      {
+        "address": "vc-2.vc-peers.prod.svc.cluster.local:8080",
+        "id": "vc-2"
+      }
+    ],
+    "version": "42",
+    "vnodes": 1000
+  },
+  "tenants": {
+    "tenants": [
+      {
+        "apiKeySha256": [
+          "819685611e044dc4918e558945f580790befd0786cc2fb36e3417477ed704a3d",
+          "e13ec0cb85b1e9b4c68f9ab2eb9abeed3376e468aa136fcfbac7c29ca02d6a08"
+        ],
+        "rpmLimit": "1200",
+        "semanticMode": "neural",
+        "semanticThreshold": 0.97,
+        "sourceGeneration": "2",
+        "tenantId": "acme",
+        "tpmLimit": "50000",
+        "ttlSeconds": 600
+      },
+      {
+        "rpmLimit": "1200",
+        "sourceGeneration": "2",
+        "tenantId": "beta"
+      }
+    ],
+    "version": "42"
+  },
+  "version": "42"
+}
