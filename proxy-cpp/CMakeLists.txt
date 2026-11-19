@@ -58,7 +58,8 @@ add_library(vanguard_core STATIC
   src/config.cpp
   src/circuit_breaker.cpp
   src/embedding.cpp
-  src/semantic_index.cpp)
+  src/semantic_index.cpp
+  src/control.cpp)
 target_include_directories(vanguard_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(vanguard_core
   PUBLIC nlohmann_json::nlohmann_json Threads::Threads
@@ -100,8 +101,19 @@ if(VANGUARD_BUILD_TESTS)
     tests/test_tenants.cpp
     tests/test_config.cpp
     tests/test_circuit_breaker.cpp
-    tests/test_semantic.cpp)
+    tests/test_semantic.cpp
+    tests/test_control.cpp)
   target_link_libraries(vanguard_tests PRIVATE vanguard_core vanguard_warnings GTest::gtest_main)
+  target_compile_definitions(vanguard_tests PRIVATE VANGUARD_REPO_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/..")
   include(GoogleTest)
   gtest_discover_tests(vanguard_tests DISCOVERY_TIMEOUT 60)
+
+  # End-to-end: 3 real proxy processes + mock upstream (Linux only, needs python3).
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(TARGET vanguard-proxy AND Python3_Interpreter_FOUND)
+    add_test(NAME multinode_forwarding
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../benchmarks/multinode_test.py
+              --binary $<TARGET_FILE:vanguard-proxy> --base-port 18100)
+    set_tests_properties(multinode_forwarding PROPERTIES TIMEOUT 180 RUN_SERIAL TRUE)
+  endif()
 endif()

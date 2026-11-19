@@ -1,4 +1,4 @@
-# vanguard-proxy (Phases 1–2)
+# vanguard-proxy (Phases 1–3)
 
 C++20, Linux `epoll` (edge-triggered), no framework. Dependencies: nlohmann/json,
 plus GoogleTest for tests. CMake uses the system packages if present and fetches
@@ -26,6 +26,41 @@ client ──► epoll worker (SO_REUSEPORT listener, one per thread)
                            cache only if the stream completed with data: [DONE]
 ```
 
+## Multi-node (Phase 3)
+
+N gateways form one logical cache. Each request is routed by its exact cache key on a 1000-vnode consistent-hash
+ring to the **owner**:
+
+```
+client -> any node (ingress) -- owner elsewhere --> same request + X-Vanguard-Hop: 1 + X-Vanguard-Peer-Token --> owner
+                                                     owner serves (cache/semantic/upstream) <- response relayed
+```
+
+| Situation | Behaviour |
+|---|---|
+| Ingress is the owner | serve locally |
+| Owner elsewhere, reachable | forward once; the response (JSON or SSE) is relayed byte-for-byte with `X-Vanguard-Ingress` |
+| Owner unknown / unresolved / circuit open / connect fails | **serve locally** (`vanguard_forward_local_fallback_total`) |
+| Forwarded to us, but our ring names another owner (rolling update) | **serve locally, never re-forward** (`vanguard_ring_divergence_total`) |
+| `X-Vanguard-Hop` > 1 | **508 Loop Detected** |
+| `X-Vanguard-Hop` without a valid `X-Vanguard-Peer-Token` | **403** (clients can't skip rate limits) |
+
+**Rate limits and response headers.** Tenant limits are cluster-wide: each of N members enforces limit/N. RPM is
+charged only at the ingress hop, and TPM at the node that calls the upstream. Every chat response carries
+`X-Vanguard-Owner` (the ring owner) and `X-Vanguard-Node` (the node that served it).
+
+**Control plane.** Configuration arrives on the admin listener (`ADMIN_PORT`, default 9901,
+`ADMIN_TOKEN`) or from `CONTROL_FILE` (polled every second; reloaded immediately on SIGHUP), using the messages
+in [`proto/vanguard/control/v1/control.proto`](../proto/vanguard/control/v1/control.proto):
+- **Ring updates** replace the topology atomically. Hostnames are resolved by a control thread, off the event
+  loop, and re-resolved every 15 s, since pod IPs change on restart.
+- **Tenant policy sets** replace dynamic tenants atomically. A tenant authenticates by the SHA-256 of its API
+  key, and can override `semanticMode`, `semanticThreshold` and `ttlSeconds`.
+- **Versions are monotonic**, so an older update can't overwrite a newer one.
+- **Workers pick up new snapshots** with one atomic generation check per event-loop iteration.
+
+Static setup without an operator: `PEERS=n0=10.0.0.1:8080,n1=10.0.0.2:8080 NODE_ID=n0`.
+
 ## Layout
 
 | File | Responsibility |
@@ -37,6 +72,7 @@ client ──► epoll worker (SO_REUSEPORT listener, one per thread)
 | `include/vanguard/rate_limiter.hpp` | per-tenant RPM + TPM token buckets, sharded mutexes |
 | `include/vanguard/llm_request.hpp` | chat request validation, canonical cache key, token estimate |
 | `include/vanguard/sse.hpp` | SSE event splitter, `[DONE]` detection, HTTP chunk framing |
+| `include/vanguard/control.hpp` | control messages (JSON), versioned ring/tenant snapshots, forwarding decision, peer resolution |
 | `include/vanguard/circuit_breaker.hpp` | closed/open/half-open breaker with exponential backoff; `FailoverRouter` policy |
 | `include/vanguard/embedding.hpp` | prompt normalization + guard, lexical encoder, `/v1/embeddings` client helpers |
 | `include/vanguard/semantic_index.hpp` | scope-partitioned exact cosine index, per-scope + global bounds |

@@ -1,0 +1,28 @@
+# Kubebuilder v4 project layout. Scaffolded by hand because the kubebuilder
+# CLI was not available; directories, markers and Makefile targets follow
+# kubebuilder conventions, so `kubebuilder create api` works from here.
+domain: cloudvanguard.io
+layout:
+- go.kubebuilder.io/v4
+projectName: cloudvanguard-operator
+repo: github.com/JCHETAN26/Cloud-Vanguard/operator-go
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: cloudvanguard.io
+  group: cache
+  kind: CacheCluster
+  path: github.com/JCHETAN26/Cloud-Vanguard/operator-go/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: cloudvanguard.io
+  group: cache
+  kind: TenantCachePolicy
+  path: github.com/JCHETAN26/Cloud-Vanguard/operator-go/api/v1alpha1
+  version: v1alpha1
+version: "3"

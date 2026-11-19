@@ -165,6 +165,22 @@ const std::vector<Option>& options() {
          for (const auto& n : c.ring_nodes) s += (s.empty() ? "" : ",") + n;
          return s.empty() ? c.node_id : s;
        }},
+      {"PEERS", "static ring with addresses: id=host:port,... (overridden by the control plane)",
+       string_setter(&Config::peers), string_getter(&Config::peers)},
+      {"ADMIN_ADDR", "admin listener address (control-plane API)", string_setter(&Config::admin_addr),
+       string_getter(&Config::admin_addr)},
+      {"ADMIN_PORT", "admin listener port (0 = disabled)", uint_setter(&Config::admin_port, 0, 65535),
+       uint_getter(&Config::admin_port)},
+      {"ADMIN_TOKEN", "bearer token required on /admin/v1/*", string_setter(&Config::admin_token),
+       [](const Config& c) { return c.admin_token.empty() ? std::string("<unset>") : std::string("<set>"); }},
+      {"PEER_TOKEN", "shared secret authenticating X-Vanguard-Hop between nodes", string_setter(&Config::peer_token),
+       [](const Config& c) { return c.peer_token.empty() ? std::string("<unset>") : std::string("<set>"); }},
+      {"CONTROL_FILE", "ControlDocument JSON to load at start and poll for changes",
+       string_setter(&Config::control_file), string_getter(&Config::control_file)},
+      {"PEER_CONNECT_TIMEOUT_MS", "connect timeout to the owner node before serving locally",
+       uint_setter(&Config::peer_connect_timeout_ms, 1, 60000), uint_getter(&Config::peer_connect_timeout_ms)},
+      {"PEER_TIMEOUT_MS", "max wait for the owner node's response headers",
+       uint_setter(&Config::peer_timeout_ms, 1, 3600000), uint_getter(&Config::peer_timeout_ms)},
       {"RING_VNODES", "virtual nodes per ring member", uint_setter(&Config::ring_vnodes, 1, 100000),
        uint_getter(&Config::ring_vnodes)},
       {"CLIENT_IDLE_TIMEOUT_S", "close idle client connections after N seconds",
@@ -302,6 +318,10 @@ std::optional<Config> load_config(int argc, const char* const* argv, std::string
   }
   if (cfg.breaker_max_open_ms < cfg.breaker_open_ms) {
     error = "BREAKER_MAX_OPEN_MS must be >= BREAKER_OPEN_MS";
+    return std::nullopt;
+  }
+  if (cfg.admin_port != 0 && cfg.admin_port == cfg.listen_port) {
+    error = "ADMIN_PORT must differ from LISTEN_PORT";
     return std::nullopt;
   }
   if (cfg.node_id.empty()) {
