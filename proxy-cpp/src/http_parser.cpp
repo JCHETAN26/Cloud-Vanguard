@@ -58,6 +58,7 @@ std::string_view status_reason(int status) noexcept {
     case 100: return "Continue";
     case 200: return "OK";
     case 201: return "Created";
+    case 202: return "Accepted";
     case 204: return "No Content";
     case 304: return "Not Modified";
     case 400: return "Bad Request";

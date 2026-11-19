@@ -80,6 +80,33 @@ spec:
                   would serialize as "0").
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
+              persistence:
+                description: |-
+                  Warm-cache persistence: each pod gets a raw block volume (CSI,
+                  volumeMode Block) that vanguard-proxy snapshots its cache to, so a
+                  restarted or rescheduled pod resumes with a warm cache.
+                properties:
+                  size:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    default: 1Gi
+                    description: Volume size per pod. Each snapshot slot gets just
+                      under half of it.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  snapshotIntervalSeconds:
+                    default: 60
+                    description: How often pods snapshot their cache (they also snapshot
+                      on SIGTERM).
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  storageClassName:
+                    description: StorageClass provisioning the volumes, e.g. one backed
+                      by csi.cloudvanguard.io.
+                    type: string
+                type: object
               replicas:
                 default: 3
                 description: Number of gateway pods (ring members).

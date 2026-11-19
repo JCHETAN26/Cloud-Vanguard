@@ -577,3 +577,58 @@ func TestSamplesApplyAndReconcile(t *testing.T) {
 		return nil
 	})
 }
+
+func TestCacheClusterPersistenceUsesBlockVolumes(t *testing.T) {
+	requireEnv(t)
+	ns := newNamespace(t)
+	cc := newCluster(ns, "warm", 3)
+	cc.Spec.Persistence = &cachev1alpha1.PersistenceSpec{StorageClassName: ptr.To("cloudvanguard-block")}
+	if err := k8sClient.Create(ctx, cc); err != nil {
+		t.Fatal(err)
+	}
+	got := getCluster(t, ns, "warm")
+	if p := got.Spec.Persistence; p.Size == nil || p.Size.String() != "1Gi" || p.SnapshotIntervalSeconds != 60 {
+		t.Fatalf("persistence defaults not applied: %+v", p)
+	}
+	sts := &appsv1.StatefulSet{}
+	eventually(t, "statefulset", func() error {
+		return k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "warm"}, sts)
+	})
+	if len(sts.Spec.VolumeClaimTemplates) != 1 {
+		t.Fatalf("volumeClaimTemplates: %+v", sts.Spec.VolumeClaimTemplates)
+	}
+	pvc := sts.Spec.VolumeClaimTemplates[0]
+	if *pvc.Spec.VolumeMode != corev1.PersistentVolumeBlock || *pvc.Spec.StorageClassName != "cloudvanguard-block" ||
+		pvc.Spec.Resources.Requests.Storage().String() != "1Gi" {
+		t.Fatalf("claim template: %+v", pvc.Spec)
+	}
+	if p := sts.Spec.PersistentVolumeClaimRetentionPolicy; p == nil ||
+		p.WhenScaled != appsv1.RetainPersistentVolumeClaimRetentionPolicyType {
+		t.Fatalf("warm caches must be retained on scale-down: %+v", p)
+	}
+	c := sts.Spec.Template.Spec.Containers[0]
+	if len(c.VolumeDevices) != 1 || c.VolumeDevices[0].DevicePath != "/dev/vanguard-cache" {
+		t.Fatalf("volumeDevices: %+v", c.VolumeDevices)
+	}
+	for name, want := range map[string]string{"SNAPSHOT_PATH": "/dev/vanguard-cache", "SNAPSHOT_MODE": "block",
+		"SNAPSHOT_INTERVAL_S": "60"} {
+		if got, _ := envValue(c, name); got != want {
+			t.Errorf("env %s = %q, want %q", name, got, want)
+		}
+	}
+	// Reconciling again must not try to change the immutable claim templates.
+	got = getCluster(t, ns, "warm")
+	got.Spec.Replicas = 4
+	if err := k8sClient.Update(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "scaled", func() error {
+		if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "warm"}, sts); err != nil {
+			return err
+		}
+		if *sts.Spec.Replicas != 4 || len(sts.Spec.VolumeClaimTemplates) != 1 {
+			return fmt.Errorf("replicas=%d templates=%d", *sts.Spec.Replicas, len(sts.Spec.VolumeClaimTemplates))
+		}
+		return nil
+	})
+}

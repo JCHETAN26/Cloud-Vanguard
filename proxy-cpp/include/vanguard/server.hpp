@@ -20,6 +20,7 @@
 #include "vanguard/metrics.hpp"
 #include "vanguard/rate_limiter.hpp"
 #include "vanguard/semantic_index.hpp"
+#include "vanguard/snapshot.hpp"
 #include "vanguard/tenants.hpp"
 
 namespace vanguard {
@@ -73,6 +74,21 @@ struct SharedState {
 
   [[nodiscard]] std::vector<BreakerReport> breaker_reports() const;
   [[nodiscard]] ControlReport control_report() const;
+
+  // Warm-cache snapshots: all I/O happens on the snapshot thread; requests
+  // are queued (admin API) and their completion is observable via status.
+  std::uint64_t request_snapshot_save();
+  std::uint64_t request_snapshot_restore();
+  SnapshotSaveStats run_snapshot_save();
+  SnapshotLoadStats run_snapshot_restore();
+  [[nodiscard]] std::string snapshot_status_json() const;
+  mutable std::mutex snap_mu;
+  std::condition_variable snap_cv;
+  std::uint64_t save_requested = 0, save_completed = 0;
+  std::uint64_t restore_requested = 0, restore_completed = 0;
+  SnapshotSaveStats last_save;
+  SnapshotLoadStats last_restore;
+  std::int64_t last_save_unix = 0, last_restore_unix = 0;
 };
 
 // Starts cfg.workers epoll event loops (one SO_REUSEPORT listener each) and

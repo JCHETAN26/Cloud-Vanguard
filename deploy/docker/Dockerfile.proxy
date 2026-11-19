@@ -1,0 +1,24 @@
+# vanguard-proxy (C++20 data plane). Build from the repository root:
+#   docker build -f deploy/docker/Dockerfile.proxy -t ghcr.io/jchetan26/vanguard-proxy:0.4.0 .
+# The build stage runs the unit tests (the multi-process forwarding test needs
+# the Python harness and runs in CI instead).
+
+FROM ubuntu:24.04 AS build
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      build-essential cmake ninja-build libgtest-dev nlohmann-json3-dev ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY proxy-cpp/ proxy-cpp/
+# Cross-language contract test input (operator-rendered control document).
+COPY operator-go/internal/render/testdata/control_golden.json operator-go/internal/render/testdata/
+RUN cmake -S proxy-cpp -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVANGUARD_WERROR=ON \
+ && cmake --build build \
+ && ctest --test-dir build -E multinode_forwarding --output-on-failure
+
+FROM ubuntu:24.04
+RUN useradd --system --uid 10001 --no-create-home vanguard
+COPY --from=build /src/build/vanguard-proxy /usr/local/bin/vanguard-proxy
+USER 10001
+EXPOSE 8080 9901
+ENTRYPOINT ["/usr/local/bin/vanguard-proxy"]

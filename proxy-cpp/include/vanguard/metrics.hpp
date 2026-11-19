@@ -110,6 +110,14 @@ struct Metrics {
   std::atomic<std::uint64_t> admin_updates{0};
   std::atomic<std::uint64_t> admin_rejected{0};
 
+  // Warm-cache snapshots.
+  std::atomic<std::uint64_t> snapshot_saves{0};
+  std::atomic<std::uint64_t> snapshot_restores{0};
+  std::atomic<std::uint64_t> snapshot_failures{0};
+  std::atomic<std::uint64_t> snapshot_last_entries{0};
+  std::atomic<std::uint64_t> snapshot_last_bytes{0};
+  std::atomic<std::uint64_t> snapshot_restored_entries{0};
+
   LatencyHistogram latency_hit;
   LatencyHistogram latency_hit_stream;
   LatencyHistogram latency_miss;

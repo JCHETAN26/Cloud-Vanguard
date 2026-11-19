@@ -1,0 +1,173 @@
+# csi.cloudvanguard.io: QEMU disk images as Kubernetes block volumes.
+#
+# Topology assumed by these manifests: a single storage host (kind / a
+# single-host lab) where the controller's image directory is visible to the
+# node plugin at the same hostPath (--attacher=local). For Kubernetes nodes
+# that are QEMU/KVM VMs, run the controller on the hypervisor host with
+# --attacher=qmp --qmp-socket-template=/run/vanguard/qmp/{node}.sock instead:
+# volumes are hot-plugged into the node VM as virtio-scsi disks.
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: csi.cloudvanguard.io
+spec:
+  attachRequired: true          # ControllerPublishVolume attaches the image to the node
+  podInfoOnMount: false
+  volumeLifecycleModes: [Persistent]
+  fsGroupPolicy: File
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudvanguard-csi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: csi-controller
+  namespace: cloudvanguard-csi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: csi-node
+  namespace: cloudvanguard-csi
+---
+# Permissions for the external-provisioner, -attacher, -snapshotter and -resizer sidecars.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cloudvanguard-csi-controller
+rules:
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch, create, delete, patch, update]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, list, watch, update]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims/status]
+    verbs: [patch, update]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [list, watch, create, update, patch]
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses, csinodes]
+    verbs: [get, list, watch]
+  - apiGroups: [storage.k8s.io]
+    resources: [volumeattachments]
+    verbs: [get, list, watch, patch]
+  - apiGroups: [storage.k8s.io]
+    resources: [volumeattachments/status]
+    verbs: [patch]
+  - apiGroups: [snapshot.storage.k8s.io]
+    resources: [volumesnapshotclasses, volumesnapshots]
+    verbs: [get, list, watch]
+  - apiGroups: [snapshot.storage.k8s.io]
+    resources: [volumesnapshotcontents]
+    verbs: [get, list, watch, create, update, delete, patch]
+  - apiGroups: [snapshot.storage.k8s.io]
+    resources: [volumesnapshotcontents/status]
+    verbs: [update, patch]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, watch, list, delete, update, create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cloudvanguard-csi-controller
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: cloudvanguard-csi-controller}
+subjects:
+  - {kind: ServiceAccount, name: csi-controller, namespace: cloudvanguard-csi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: csi-controller
+  namespace: cloudvanguard-csi
+spec:
+  replicas: 1   # sidecars use leader election; images live on one storage host
+  selector:
+    matchLabels: {app: cloudvanguard-csi-controller}
+  template:
+    metadata:
+      labels: {app: cloudvanguard-csi-controller}
+    spec:
+      serviceAccountName: csi-controller
+      containers:
+        - name: csi-driver
+          image: ghcr.io/jchetan26/cloudvanguard-csi:0.4.0
+          args: ["--mode=controller", "--endpoint=unix:///csi/csi.sock",
+                 "--state-dir=/var/lib/cloudvanguard-csi", "--attacher=local"]
+          volumeMounts:
+            - {name: socket-dir, mountPath: /csi}
+            - {name: images, mountPath: /var/lib/cloudvanguard-csi}
+        - name: csi-provisioner
+          image: registry.k8s.io/sig-storage/csi-provisioner:v5.0.1
+          args: ["--csi-address=/csi/csi.sock", "--leader-election", "--default-fstype=ext4", "--extra-create-metadata"]
+          volumeMounts: [{name: socket-dir, mountPath: /csi}]
+        - name: csi-attacher
+          image: registry.k8s.io/sig-storage/csi-attacher:v4.6.1
+          args: ["--csi-address=/csi/csi.sock", "--leader-election"]
+          volumeMounts: [{name: socket-dir, mountPath: /csi}]
+        - name: csi-snapshotter
+          image: registry.k8s.io/sig-storage/csi-snapshotter:v8.0.1
+          args: ["--csi-address=/csi/csi.sock", "--leader-election"]
+          volumeMounts: [{name: socket-dir, mountPath: /csi}]
+        - name: csi-resizer
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.11.1
+          args: ["--csi-address=/csi/csi.sock", "--leader-election"]
+          volumeMounts: [{name: socket-dir, mountPath: /csi}]
+      volumes:
+        - {name: socket-dir, emptyDir: {}}
+        - name: images
+          hostPath: {path: /var/lib/cloudvanguard-csi, type: DirectoryOrCreate}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: csi-node
+  namespace: cloudvanguard-csi
+spec:
+  selector:
+    matchLabels: {app: cloudvanguard-csi-node}
+  template:
+    metadata:
+      labels: {app: cloudvanguard-csi-node}
+    spec:
+      serviceAccountName: csi-node
+      containers:
+        - name: csi-driver
+          image: ghcr.io/jchetan26/cloudvanguard-csi:0.4.0
+          args: ["--mode=node", "--endpoint=unix:///csi/csi.sock", "--mounter=host"]
+          env:
+            - name: NODE_ID
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+          securityContext: {privileged: true}
+          volumeMounts:
+            - {name: plugin-dir, mountPath: /csi}
+            - {name: kubelet-dir, mountPath: /var/lib/kubelet, mountPropagation: Bidirectional}
+            - {name: dev, mountPath: /dev}
+            - {name: images, mountPath: /var/lib/cloudvanguard-csi}
+        - name: node-driver-registrar
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.11.1
+          args: ["--csi-address=/csi/csi.sock",
+                 "--kubelet-registration-path=/var/lib/kubelet/plugins/csi.cloudvanguard.io/csi.sock"]
+          volumeMounts:
+            - {name: plugin-dir, mountPath: /csi}
+            - {name: registration-dir, mountPath: /registration}
+      volumes:
+        - name: plugin-dir
+          hostPath: {path: /var/lib/kubelet/plugins/csi.cloudvanguard.io, type: DirectoryOrCreate}
+        - name: registration-dir
+          hostPath: {path: /var/lib/kubelet/plugins_registry, type: Directory}
+        - name: kubelet-dir
+          hostPath: {path: /var/lib/kubelet, type: Directory}
+        - name: dev
+          hostPath: {path: /dev}
+        - name: images
+          hostPath: {path: /var/lib/cloudvanguard-csi, type: DirectoryOrCreate}

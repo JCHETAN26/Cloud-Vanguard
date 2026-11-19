@@ -1,0 +1,18 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cloudvanguard-block
+provisioner: csi.cloudvanguard.io
+parameters:
+  format: raw          # raw: directly usable as a block device; qcow2: VM attachment (qmp attacher)
+reclaimPolicy: Retain  # warm caches outlive their pods
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+---
+# Requires the external-snapshotter CRDs + snapshot-controller in the cluster.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: cloudvanguard-snapshots
+driver: csi.cloudvanguard.io
+deletionPolicy: Delete

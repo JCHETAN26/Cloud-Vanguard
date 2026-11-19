@@ -75,6 +75,20 @@ struct Config {
   std::string control_file;              // ControlDocument JSON to load + poll (ConfigMap mount)
   unsigned peer_connect_timeout_ms = 250;
   unsigned peer_timeout_ms = 60000;      // max wait for the owner's response headers
+  // Peer circuit breaker. Peers share a fast local network, so a recovered
+  // node is re-probed quickly (250 ms doubling to at most 2 s); a long
+  // backoff would keep its keys served by non-owners (cache misses) after it
+  // is back.
+  unsigned peer_breaker_threshold = 3;
+  unsigned peer_breaker_open_ms = 250;
+  unsigned peer_breaker_max_open_ms = 2000;
+
+  // Warm-cache persistence (Phase 4).
+  std::string snapshot_path;          // file (filesystem volume) or raw block device; empty = off
+  std::string snapshot_mode = "auto"; // auto (block if a block device) | file | block
+  unsigned snapshot_interval_s = 300; // periodic save (0 = only on demand / shutdown)
+  unsigned snapshot_on_shutdown = 1;
+  unsigned snapshot_restore_on_start = 1;
 
   unsigned client_idle_timeout_s = 60;
   std::size_t max_body_kb = 4096;
