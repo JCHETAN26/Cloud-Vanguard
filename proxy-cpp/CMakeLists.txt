@@ -107,7 +107,8 @@ if(VANGUARD_BUILD_TESTS)
     tests/test_control.cpp
     tests/test_snapshot.cpp
     tests/test_tracing.cpp
-    tests/test_metrics.cpp)
+    tests/test_metrics.cpp
+    tests/test_operator_contract.cpp)
   target_link_libraries(vanguard_tests PRIVATE vanguard_core vanguard_warnings GTest::gtest_main)
   target_compile_definitions(vanguard_tests PRIVATE VANGUARD_REPO_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/..")
   include(GoogleTest)
@@ -125,5 +126,10 @@ if(VANGUARD_BUILD_TESTS)
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/integration/test_tracing_e2e.py
               --binary $<TARGET_FILE:vanguard-proxy> --base-port 18300)
     set_tests_properties(tracing_e2e PROPERTIES TIMEOUT 180 RUN_SERIAL TRUE)
+    # Hostile inputs must never take the process down (Milestone 2 regression).
+    add_test(NAME http_robustness
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/integration/test_http_robustness.py
+              --binary $<TARGET_FILE:vanguard-proxy> --base-port 18500)
+    set_tests_properties(http_robustness PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
   endif()
 endif()

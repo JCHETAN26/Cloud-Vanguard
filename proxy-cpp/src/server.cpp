@@ -116,10 +116,13 @@ bool is_hop_response_header(std::string_view name) {
   return false;
 }
 
+// Error messages quote client input (e.g. the request path), which may be
+// invalid UTF-8: nlohmann's default dump() throws on that, and an uncaught
+// exception on a worker thread terminates the process. Replace instead.
 std::string json_error(std::string_view message, std::string_view type, std::string_view code) {
   nlohmann::json j;
   j["error"] = {{"message", message}, {"type", type}, {"code", code}};
-  return j.dump();
+  return j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
 }
 
 void set_nodelay(int fd) {
@@ -977,11 +980,7 @@ void Worker::handle_admin(ClientConn* c, HttpRequest& req) {
     s_.wake_control();  // resolve new peer hostnames off the event loop
     refresh_snapshots();
   }
-  nlohmann::json body = {{"applied", out.applied},
-                         {"version", std::to_string(out.version)},
-                         {"message", out.message},
-                         {"nodeId", s_.cfg.node_id}};
-  respond(c, out.http_status, kJson, body.dump());
+  respond(c, out.http_status, kJson, apply_result_json(out, s_.cfg.node_id, &s_.tracer));
 }
 
 void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point start, bool local_only) {
@@ -2103,7 +2102,7 @@ std::string SharedState::snapshot_status_json() const {
                       {"mode", last_restore.mode},     {"slot", last_restore.slot},
                       {"generation", last_restore.generation}, {"durationMs", last_restore.duration_ms},
                       {"error", last_restore.error},   {"unix", last_restore_unix}};
-  return j.dump();
+  return j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
 }
 
 void SharedState::wake_control() {

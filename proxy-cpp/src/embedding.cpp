@@ -276,7 +276,7 @@ std::string make_embedding_request(std::string_view model, std::string_view inpu
   nlohmann::json j;
   j["model"] = model;
   j["input"] = input;
-  return j.dump();
+  return j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
 }
 
 }  // namespace vanguard

@@ -11,6 +11,7 @@
 #include <nlohmann/json.hpp>
 
 #include "vanguard/strutil.hpp"
+#include "vanguard/tracing.hpp"
 
 namespace vanguard {
 namespace {
@@ -552,7 +553,31 @@ std::string ControlPlane::to_json() const {
     tenants.push_back(std::move(o));
   }
   doc["tenants"] = {{"version", tenants_version_}, {"tenants", tenants}};
-  return doc.dump();
+  return doc.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+}
+
+std::string apply_result_json(const ApplyOutcome& outcome, std::string_view node_id, const tracing::Tracer* tracer) {
+  nlohmann::json body = {{"applied", outcome.applied},
+                         {"version", std::to_string(outcome.version)},
+                         {"message", outcome.message},
+                         {"nodeId", std::string(node_id)}};
+  if (tracer != nullptr) {
+    const auto st = tracer->status();
+    nlohmann::json t = {{"enabled", st.enabled},
+                        {"sampler", st.sampler},
+                        {"samplerRatio", st.sampler_ratio},
+                        {"serviceName", st.service_name},
+                        {"spansExported", std::to_string(st.stats.exported)},
+                        {"spansDropped", std::to_string(st.stats.dropped)},
+                        {"spansFailed", std::to_string(st.stats.failed)},
+                        {"exportErrors", std::to_string(st.stats.export_errors)},
+                        {"lastExportFailed", st.last_export_failed}};
+    if (!st.traces_endpoint.empty()) t["tracesEndpoint"] = st.traces_endpoint;
+    if (!st.last_export_error.empty()) t["lastExportError"] = st.last_export_error;
+    body["tracing"] = std::move(t);
+  }
+  // Replace, never throw, on invalid UTF-8 (messages may quote client input).
+  return body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
 }
 
 }  // namespace vanguard

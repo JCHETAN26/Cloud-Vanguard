@@ -113,6 +113,7 @@ class Span {
 
 enum class Sampler { kAlwaysOn, kAlwaysOff, kTraceIdRatio, kParentAlwaysOn, kParentAlwaysOff, kParentTraceIdRatio };
 std::optional<Sampler> parse_sampler(std::string_view name);
+std::string_view sampler_name(Sampler s) noexcept;
 // TraceIdRatioBased: the lower 8 bytes of the trace id (big-endian) compared
 // against ratio * 2^64, so every service with the same ratio agrees.
 bool ratio_sampled(const TraceId& id, double ratio) noexcept;
@@ -176,6 +177,19 @@ class Tracer {
     std::uint64_t export_errors = 0;
   };
   [[nodiscard]] Stats stats() const noexcept;
+
+  // Read side of the configuration (vanguard.control.v1.TracingStatus).
+  struct Status {
+    bool enabled = false;
+    std::string traces_endpoint;
+    std::string sampler;
+    double sampler_ratio = 1.0;
+    std::string service_name;
+    Stats stats;
+    bool last_export_failed = false;
+    std::string last_export_error;
+  };
+  [[nodiscard]] Status status() const;
   // Prometheus exposition lines for /metrics.
   [[nodiscard]] std::string render_metrics() const;
 
@@ -199,6 +213,9 @@ class Tracer {
   std::atomic<std::uint64_t> failed_{0};
   std::atomic<std::uint64_t> batches_{0};
   std::atomic<std::uint64_t> export_errors_{0};
+  mutable std::mutex last_mu_;
+  bool last_export_failed_ = false;
+  std::string last_export_error_;
 };
 
 // Builds TracerOptions from the standard OTEL_* settings carried in Config.

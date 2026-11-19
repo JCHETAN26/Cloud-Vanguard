@@ -164,6 +164,14 @@ struct ApplyOutcome {
   std::string message;
 };
 
+namespace tracing {
+class Tracer;
+}
+
+// vanguard.control.v1.ApplyResult in proto3 JSON (int64 as strings), the
+// admin API's answer to every write. `tracer` adds the TracingStatus field.
+std::string apply_result_json(const ApplyOutcome& outcome, std::string_view node_id, const tracing::Tracer* tracer);
+
 class ControlPlane {
  public:
   struct Options {

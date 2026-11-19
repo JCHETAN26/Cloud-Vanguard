@@ -86,6 +86,28 @@ message ApplyResult {
   int64 version = 2;     // version now active
   string message = 3;
   string node_id = 4;
+  // The node's OpenTelemetry tracing state, reported with every apply so the
+  // operator can tell whether pods export spans with the configured settings.
+  // Absent from proxies that predate tracing.
+  TracingStatus tracing = 5;
+}
+
+// Tracing is configured per pod through the standard OTEL_* environment
+// (rendered by the operator from CacheCluster.spec.tracing), not through
+// ControlDocument: changing the exporter needs a restart. This message is the
+// read side of that contract. Counters are cumulative since process start.
+message TracingStatus {
+  bool enabled = 1;            // an OTLP endpoint is configured
+  string traces_endpoint = 2;  // full URL spans are POSTed to (<endpoint>/v1/traces)
+  string sampler = 3;          // OTEL_TRACES_SAMPLER name, e.g. parentbased_traceidratio
+  double sampler_ratio = 4;    // ratio used by the *traceidratio samplers
+  string service_name = 5;     // service.name resource attribute
+  int64 spans_exported = 6;
+  int64 spans_dropped = 7;     // export queue full
+  int64 spans_failed = 8;      // in batches the endpoint rejected or never received
+  int64 export_errors = 9;     // failed export requests
+  bool last_export_failed = 10;
+  string last_export_error = 11;
 }
 
 message GetConfigRequest {}
