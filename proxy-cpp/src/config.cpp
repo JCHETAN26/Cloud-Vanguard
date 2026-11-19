@@ -126,6 +126,8 @@ const std::vector<Option>& options() {
        uint_setter(&Config::semantic_max_chars, 1, 1u << 24), uint_getter(&Config::semantic_max_chars)},
       {"SEMANTIC_MAX_ENTRIES", "vectors kept in the semantic index",
        uint_setter(&Config::semantic_max_entries, 1, 1u << 30), uint_getter(&Config::semantic_max_entries)},
+      {"SEMANTIC_MAX_PER_SCOPE", "vectors kept per scope (system prompt); bounds the scan cost",
+       uint_setter(&Config::semantic_max_per_scope, 1, 1u << 24), uint_getter(&Config::semantic_max_per_scope)},
       {"SEMANTIC_DIM", "lexical encoder dimensions", uint_setter(&Config::semantic_dim, 16, 8192),
        uint_getter(&Config::semantic_dim)},
       {"UPSTREAM_TIMEOUT_MS", "max idle wait for upstream bytes",

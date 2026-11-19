@@ -1421,7 +1421,7 @@ SharedState::SharedState(Config c, TenantRegistry t, std::array<UpstreamTarget, 
       lexical(cfg.semantic_dim),
       limiter(64),
       cache(cfg.cache_max_mb * 1024 * 1024, cfg.cache_shards, std::chrono::seconds(cfg.cache_ttl_s)),
-      semantic(SemanticIndex::Options{16, cfg.semantic_max_entries, 2048}),
+      semantic(SemanticIndex::Options{16, cfg.semantic_max_entries, cfg.semantic_max_per_scope}),
       ring(cfg.ring_vnodes) {
   if (cfg.ring_nodes.empty()) {
     ring.add_node(cfg.node_id);

@@ -42,6 +42,7 @@ struct Config {
   double semantic_threshold = 0.94;
   std::size_t semantic_max_chars = 2000;
   std::size_t semantic_max_entries = 100000;
+  std::size_t semantic_max_per_scope = 4096;  // brute-force scan bound (~1 ms at 512 dims)
   std::size_t semantic_dim = 512;  // lexical encoder dimensions
 
   std::string tenants_file;  // empty = accept any bearer token with default limits
