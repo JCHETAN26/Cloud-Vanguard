@@ -68,9 +68,9 @@ int main(int argc, char** argv) {
   ControlPlane::Options control;
   control.self_id = cfg->node_id;
   control.default_vnodes = cfg->ring_vnodes;
-  control.peer_breaker.failure_threshold = 3;
-  control.peer_breaker.base_open = CircuitBreaker::Millis(1000);
-  control.peer_breaker.max_open = CircuitBreaker::Millis(30000);
+  control.peer_breaker.failure_threshold = cfg->peer_breaker_threshold;
+  control.peer_breaker.base_open = CircuitBreaker::Millis(cfg->peer_breaker_open_ms);
+  control.peer_breaker.max_open = CircuitBreaker::Millis(cfg->peer_breaker_max_open_ms);
   if (!cfg->peers.empty()) {
     auto peers = parse_peer_list(cfg->peers, err);
     if (!peers) {

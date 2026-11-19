@@ -272,12 +272,12 @@ def main() -> int:
                      and upstream_calls(up) == before,
                      f"volume restored from snapshot: {rst['loaded']} entries (gen {rst['generation']}), "
                      f"{s['x_cache'].get('HIT', 0)}/{n + 100} HIT, 0 upstream calls")
+        img = os.path.realpath(target_c)  # the raw image behind the published device
         pc.kill()
         detach(ctl, vol2, "node-c", target_c, staging_c)
 
         # 4. Torn newest slot -> fallback ---------------------------------------
         print("\n== crash consistency: corrupt the newest slot ==")
-        img = os.path.realpath(target_c)
         cap = ((64 << 20) - 8192) // 2 // 4096 * 4096
         with open(img, "r+b") as f:  # slot B (generation 2) data region
             f.seek(8192 + cap + 64)
@@ -354,11 +354,19 @@ def main() -> int:
         print("\nCSI RPC latency (median ms, incl. csictl process start):",
               ", ".join(f"{k} {v}" for k, v in results["timings"].items()))
         failed = sum(1 for ok, _ in checks.items if not ok)
+        print("\nchecks:")
+        for ok, w in checks.items:
+            print(f"  [{'PASS' if ok else 'FAIL'}] {w}")
         print(f"\n{len(checks.items) - failed}/{len(checks.items)} CSI/QEMU persistence checks passed")
         results["checks"] = [{"ok": ok, "check": w} for ok, w in checks.items]
         if args.out:
             json.dump(results, open(args.out, "w"), indent=2)
         return 1 if failed else 0
+    except Exception:
+        print("\nchecks completed before the error:")
+        for ok, w in checks.items:
+            print(f"  [{'PASS' if ok else 'FAIL'}] {w}")
+        raise
     finally:
         for p in procs:
             if p.poll() is None:

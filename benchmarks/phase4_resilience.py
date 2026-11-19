@@ -264,11 +264,24 @@ def main() -> int:
                      f"C: {c['n']} requests during node kill/restart + LLM outage, 0 client-visible errors "
                      f"({rec.reroutes} connection retries to another pod)")
         rst = nodes[1].snapshot_status()["lastRestore"]
-        after = [r for r in rec.rows if r["t"] > 9.5 and r["owner"] == "n1" and r["id"] < args.warm]
-        warm_hits = sum(1 for r in after if r["cache"] == "HIT")
-        checks.check(rst["ok"] and rst["loaded"] >= args.warm // 4 and after and warm_hits / len(after) > 0.99,
-                     f"C: restarted n1 restored {rst['loaded']} entries in {rst['durationMs']:.1f} ms; "
-                     f"{warm_hits}/{len(after)} warmed prompts it owns were HITs afterwards")
+        restart_at = next(t for t, what in events if what == "restart n1")
+        owned = [r for r in rec.rows if r["t"] > restart_at and r["owner"] == "n1" and r["id"] < args.warm]
+        misses = [r for r in owned if r["cache"] != "HIT"]
+        # Recovery gap: until peers re-probe n1 (peer breaker backoff, <= 2 s),
+        # its keys are served by non-owners, which may miss.
+        gap = (max(r["t"] for r in misses) - restart_at) if misses else 0.0
+        settled = [r for r in owned if r["t"] > restart_at + 2.5]
+        settled_hits = sum(1 for r in settled if r["cache"] == "HIT")
+        served_by = {}
+        for r in misses:
+            served_by[r["node"]] = served_by.get(r["node"], 0) + 1
+        print(f"  n1 recovery gap: {len(misses)} misses on warmed n1-owned prompts within {gap:.2f}s of restart "
+              f"(served by {served_by or '-'})")
+        checks.check(rst["ok"] and rst["loaded"] >= args.warm // 4,
+                     f"C: restarted n1 restored {rst['loaded']} entries from its volume in {rst['durationMs']:.1f} ms")
+        checks.check(settled and settled_hits / len(settled) > 0.999 and gap <= 2.5,
+                     f"C: once peers re-probed n1 (gap {gap:.2f}s, {len(misses)} misses), "
+                     f"{settled_hits}/{len(settled)} warmed prompts it owns were HITs")
         down = [r for r in rec.rows if 14.3 < r["t"] < 18.5 and r["cache"] == "MISS"]
         via_fb = sum(1 for r in down if r["upstream"] == "fallback")
         fo = sum(metric(n.port, "vanguard_failovers_total") for n in nodes) - before_fo
