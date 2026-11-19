@@ -13,14 +13,26 @@ before the first byte (time-to-first-token). Streams then emit one SSE event
 per token every --token-interval-ms. Completion text is a deterministic
 function of the prompt, so identical prompts get identical content.
 
-Fault injection: a last user message containing "__mock_error_500__" returns a
-500, which lets the benchmark verify that errors are never cached.
+Fault injection:
+  * a last user message containing "__mock_error_500__" returns a 500, which
+    lets the benchmark verify that errors are never cached;
+  * POST /admin/fault {"mode": ..., "delay_ms": N, "status": S} switches the
+    whole server into a failure mode, to exercise the gateway's circuit
+    breaker and failover:
+        ok     normal behaviour
+        error  respond immediately with `status` (default 500)
+        slow   wait an extra `delay_ms` before responding
+        drop   read the request, then close the connection without a response
+        hang   never respond (holds the connection open)
+  * GET /stats includes the monotonic arrival time of recent chat requests, so
+    the benchmark can measure the breaker's probe (backoff) intervals.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import collections
 import hashlib
 import json
 import random
@@ -31,7 +43,13 @@ WORDS = (
     "kernel epoll socket buffer vector model prompt answer cluster node"
 ).split()
 
-STATS = {"requests": 0, "stream_requests": 0, "errors_injected": 0, "in_flight": 0, "max_in_flight": 0}
+STATS = {"requests": 0, "stream_requests": 0, "errors_injected": 0, "in_flight": 0, "max_in_flight": 0, "faulted": 0}
+FAULT = {"mode": "ok", "delay_ms": 0, "status": 500}
+CHAT_TIMES: collections.deque = collections.deque(maxlen=2000)
+
+
+class DropConnection(Exception):
+    """Raised to close the client connection without sending a response."""
 
 
 def completion_words(messages: list, n: int) -> list[str]:
@@ -70,9 +88,24 @@ async def handle_chat(body: bytes, writer: asyncio.StreamWriter, args: argparse.
         return
 
     STATS["requests"] += 1
+    CHAT_TIMES.append(time.monotonic())
     stream = bool(req.get("stream", False))
     if stream:
         STATS["stream_requests"] += 1
+
+    mode = FAULT["mode"]
+    if mode != "ok":
+        STATS["faulted"] += 1
+    if mode == "error":
+        status = int(FAULT.get("status", 500))
+        writer.write(http_response(status, "Injected Failure", b'{"error":{"message":"injected upstream failure"}}'))
+        return
+    if mode == "drop":
+        raise DropConnection()
+    if mode == "hang":
+        await asyncio.sleep(3600)
+    if mode == "slow":
+        await asyncio.sleep(float(FAULT.get("delay_ms", 0)) / 1000.0)
 
     await asyncio.sleep(rng.uniform(args.min_latency_ms, args.max_latency_ms) / 1000.0)
 
@@ -157,13 +190,19 @@ async def handle_conn(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
                 if target == "/healthz":
                     writer.write(http_response(200, "OK", b"ok\n", "text/plain"))
                 elif target == "/stats":
-                    writer.write(http_response(200, "OK", json.dumps(STATS).encode()))
+                    stats = dict(STATS, name=args.name, fault=FAULT, chat_times=list(CHAT_TIMES), now=time.monotonic())
+                    writer.write(http_response(200, "OK", json.dumps(stats).encode()))
+                elif method == "POST" and target == "/admin/fault":
+                    FAULT.clear()
+                    FAULT.update({"mode": "ok", "delay_ms": 0, "status": 500})
+                    FAULT.update(json.loads(body or b"{}"))
+                    writer.write(http_response(200, "OK", json.dumps(FAULT).encode()))
                 else:
                     writer.write(http_response(404, "Not Found", b'{"error":{"message":"not found"}}'))
                 await writer.drain()
             if headers.get("connection", "").lower() == "close":
                 return
-    except (ConnectionError, asyncio.IncompleteReadError):
+    except (ConnectionError, asyncio.IncompleteReadError, DropConnection):
         pass
     finally:
         writer.close()
@@ -178,12 +217,13 @@ async def main() -> None:
     p.add_argument("--token-interval-ms", type=float, default=5.0)
     p.add_argument("--tokens", type=int, default=24, help="completion length in tokens (words)")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--name", default="mock", help="label reported in /stats")
     args = p.parse_args()
     rng = random.Random(args.seed)
 
     server = await asyncio.start_server(lambda r, w: handle_conn(r, w, args, rng), args.host, args.port, backlog=4096)
     print(
-        f"mock upstream on {args.host}:{args.port} "
+        f"mock upstream '{args.name}' on {args.host}:{args.port} "
         f"(latency {args.min_latency_ms:.0f}-{args.max_latency_ms:.0f} ms, {args.tokens} tokens, "
         f"{args.token_interval_ms:.0f} ms/token)",
         flush=True,

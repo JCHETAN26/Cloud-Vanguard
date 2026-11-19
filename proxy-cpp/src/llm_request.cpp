@@ -114,4 +114,48 @@ std::uint64_t estimate_tokens(const ChatRequest& req, std::uint64_t default_comp
   return prompt + req.max_tokens.value_or(default_completion_tokens);
 }
 
+std::string semantic_text(const ChatRequest& req) {
+  if (req.messages.empty()) return {};
+  const auto& last = req.messages.back();
+  const auto role = last.find("role");
+  if (role == last.end() || *role != "user") return {};
+  const auto content = last.find("content");
+  if (content == last.end()) return {};
+  if (content->is_string()) return content->get<std::string>();
+  std::string out;
+  if (content->is_array()) {
+    for (const auto& part : *content) {
+      if (!part.is_object()) continue;
+      const auto type = part.find("type");
+      const auto text = part.find("text");
+      if (type != part.end() && *type != "text") return {};  // images etc.: not eligible
+      if (text == part.end() || !text->is_string()) continue;
+      if (!out.empty()) out.push_back('\n');
+      out += text->get_ref<const std::string&>();
+    }
+  }
+  return out;
+}
+
+std::string semantic_scope(std::string_view tenant_id, const ChatRequest& req) {
+  Sha256 h;
+  put_field(h, "cloudvanguard/semantic/v1");
+  put_field(h, tenant_id);
+  put_field(h, req.model);
+  put_field(h, req.stream ? "stream" : "json");
+  json prefix = json::array();
+  for (std::size_t i = 0; i + 1 < req.messages.size(); ++i) prefix.push_back(req.messages[i]);
+  put_field(h, prefix.dump());
+  put_field(h, req.params.dump());
+  const auto digest = h.finish();
+  return std::string(reinterpret_cast<const char*>(digest.data()), digest.size());
+}
+
+std::string rewrite_model(std::string_view body, std::string_view model) {
+  json j = json::parse(body.begin(), body.end(), nullptr, false);
+  if (j.is_discarded() || !j.is_object()) return std::string(body);
+  j["model"] = model;
+  return j.dump();
+}
+
 }  // namespace vanguard

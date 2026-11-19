@@ -16,10 +16,33 @@ struct Config {
   std::uint16_t listen_port = 8080;
   unsigned workers = 0;  // 0 = std::thread::hardware_concurrency()
 
+  // Primary upstream (e.g. self-hosted vLLM).
   std::string upstream_url = "http://127.0.0.1:9000";
   std::string upstream_api_key;  // sent upstream as "Authorization: Bearer ..."
-  unsigned upstream_timeout_ms = 60000;  // max idle time waiting on upstream bytes
-  std::size_t upstream_max_idle = 256;   // pooled keep-alive connections per worker
+  unsigned upstream_ttfb_timeout_ms = 300;  // no response headers within this => failure
+  unsigned upstream_timeout_ms = 60000;     // max silence once the response has started
+  std::size_t upstream_max_idle = 256;      // pooled keep-alive connections per worker
+
+  // Optional fallback upstream (e.g. a commercial API). Empty = no failover.
+  std::string fallback_upstream_url;
+  std::string fallback_upstream_api_key;
+  std::string fallback_model;  // rewrite "model" for the fallback (empty = keep)
+  unsigned fallback_ttfb_timeout_ms = 10000;
+
+  // Circuit breaker (one per upstream, shared by all workers).
+  unsigned breaker_failure_threshold = 5;
+  unsigned breaker_open_ms = 1000;       // first open period
+  unsigned breaker_max_open_ms = 30000;  // exponential backoff cap
+
+  // Semantic cache.
+  std::string embedder = "lexical";  // lexical | remote | off
+  std::string embedder_url = "http://127.0.0.1:9200";
+  std::string embedder_model = "BAAI/bge-small-en-v1.5";
+  unsigned embedder_timeout_ms = 150;
+  double semantic_threshold = 0.94;
+  std::size_t semantic_max_chars = 2000;
+  std::size_t semantic_max_entries = 100000;
+  std::size_t semantic_dim = 512;  // lexical encoder dimensions
 
   std::string tenants_file;  // empty = accept any bearer token with default limits
   double default_rpm = 600;

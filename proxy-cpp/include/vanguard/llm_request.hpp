@@ -35,4 +35,20 @@ std::string cache_key(std::string_view tenant_id, const ChatRequest& req);
 // (or `default_completion_tokens` when the client sets none).
 std::uint64_t estimate_tokens(const ChatRequest& req, std::uint64_t default_completion_tokens);
 
+// Semantic caching compares only the final user message. Returns its text
+// (string content, or the text parts joined by '\n'), or "" when the final
+// message is not a user message with text (e.g. a tool result), in which
+// case the request is not eligible for semantic matching.
+std::string semantic_text(const ChatRequest& req);
+
+// 32-byte key of everything that must match *exactly* for two requests to be
+// semantic neighbours: tenant, model, stream flag, every message except the
+// final user message (system prompt + conversation so far) and the
+// generation params.
+std::string semantic_scope(std::string_view tenant_id, const ChatRequest& req);
+
+// Body to send to an upstream: the original bytes, or re-serialized with a
+// different "model" when the fallback provider names the model differently.
+std::string rewrite_model(std::string_view body, std::string_view model);
+
 }  // namespace vanguard

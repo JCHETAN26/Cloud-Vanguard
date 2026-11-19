@@ -55,7 +55,10 @@ add_library(vanguard_core STATIC
   src/llm_request.cpp
   src/tenants.cpp
   src/metrics.cpp
-  src/config.cpp)
+  src/config.cpp
+  src/circuit_breaker.cpp
+  src/embedding.cpp
+  src/semantic_index.cpp)
 target_include_directories(vanguard_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(vanguard_core
   PUBLIC nlohmann_json::nlohmann_json Threads::Threads
@@ -95,7 +98,9 @@ if(VANGUARD_BUILD_TESTS)
     tests/test_sse.cpp
     tests/test_llm_request.cpp
     tests/test_tenants.cpp
-    tests/test_config.cpp)
+    tests/test_config.cpp
+    tests/test_circuit_breaker.cpp
+    tests/test_semantic.cpp)
   target_link_libraries(vanguard_tests PRIVATE vanguard_core vanguard_warnings GTest::gtest_main)
   include(GoogleTest)
   gtest_discover_tests(vanguard_tests DISCOVERY_TIMEOUT 60)
