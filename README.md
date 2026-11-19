@@ -7,8 +7,8 @@ Per-tenant rate limits and token budgets protect the upstream.
 
 | Path | What | Status |
 |---|---|---|
-| `proxy-cpp/` | C++20 epoll data plane (`vanguard-proxy`) | **Phase 1 done** |
-| `benchmarks/` | Mock LLM upstream, load generator, benchmark scripts | Phase 1 done |
+| `proxy-cpp/` | C++20 epoll data plane (`vanguard-proxy`): exact + semantic cache, rate limits, breaker/failover | **Phases 1–2 done** |
+| `benchmarks/` | Fault-injecting mock LLM, embedding sidecar, load generators, bench scripts | Phases 1–2 done |
 | `operator-go/` | Kubernetes operator (`TenantCachePolicy` CRD) | Phase 4 |
 | `proto/` | gRPC definitions (peer cache protocol, CSI) | Phase 3/6 |
 | `deploy/` | kind config, manifests | Phase 4 |
@@ -21,7 +21,8 @@ the full build.
 
 ```bash
 make test     # build + all unit tests (ctest)
-make bench    # mock upstream + proxy + 10k-request MISS/HIT benchmark
+make bench    # Phase 1: 10k-request MISS/HIT benchmark
+./benchmarks/bench_phase2.sh   # Phase 2: semantic cache, failover, neural sidecar
 ```
 
 ```bash
