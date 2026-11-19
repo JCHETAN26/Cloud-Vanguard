@@ -29,6 +29,9 @@ spec:
     - jsonPath: .status.configVersion
       name: Config
       type: integer
+    - jsonPath: .status.conditions[?(@.type=="TracingReady")].reason
+      name: Tracing
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -114,6 +117,85 @@ spec:
                 maximum: 256
                 minimum: 1
                 type: integer
+              tracing:
+                description: |-
+                  OpenTelemetry tracing: vanguard-proxy exports spans over OTLP/HTTP to a
+                  collector. Rendered into the pods' OTEL_* environment, so changing it
+                  rolls the pods; leaving it unchanged never does.
+                properties:
+                  batch:
+                    description: |-
+                      Batch span processor settings (OTEL_BSP_*); unset fields keep the
+                      proxy defaults (5000 ms, queue 2048, batch 512, timeout 10000 ms).
+                    properties:
+                      exportTimeoutMillis:
+                        description: OTLP request timeout (OTEL_EXPORTER_OTLP_TIMEOUT).
+                        format: int32
+                        maximum: 600000
+                        minimum: 1
+                        type: integer
+                      maxExportBatchSize:
+                        description: Spans per OTLP request (OTEL_BSP_MAX_EXPORT_BATCH_SIZE).
+                        format: int32
+                        maximum: 1048576
+                        minimum: 1
+                        type: integer
+                      maxQueueSize:
+                        description: Ended spans buffered per pod; more are dropped
+                          and counted (OTEL_BSP_MAX_QUEUE_SIZE).
+                        format: int32
+                        maximum: 16777216
+                        minimum: 1
+                        type: integer
+                      scheduleDelayMillis:
+                        description: Max delay between exports (OTEL_BSP_SCHEDULE_DELAY).
+                        format: int32
+                        maximum: 3600000
+                        minimum: 1
+                        type: integer
+                    type: object
+                    x-kubernetes-validations:
+                    - message: maxExportBatchSize must not exceed maxQueueSize (defaults
+                        512 and 2048)
+                      rule: '(has(self.maxExportBatchSize) ? self.maxExportBatchSize
+                        : 512) <= (has(self.maxQueueSize) ? self.maxQueueSize : 2048)'
+                  enabled:
+                    default: false
+                    description: Export spans. When false the OTEL_* variables are
+                      not set at all.
+                    type: boolean
+                  endpoint:
+                    description: |-
+                      OTLP/HTTP base URL of the collector, e.g. http://otel-collector.observability:4318.
+                      Spans are POSTed to <endpoint>/v1/traces. Plain http only: run a
+                      collector (or agent) in-cluster and let it handle TLS to the backend.
+                    maxLength: 2048
+                    pattern: ^http://[^\s/]+(/\S*)?$
+                    type: string
+                    x-kubernetes-validations:
+                    - message: give the collector base URL; /v1/traces is appended
+                      rule: '!self.endsWith(''/v1/traces'') && !self.endsWith(''/v1/traces/'')'
+                  samplerRatio:
+                    default: "1"
+                    description: |-
+                      Fraction of new traces to sample, as a decimal string in [0, 1]
+                      (OTEL_TRACES_SAMPLER_ARG). Sampling is parent-based: an incoming
+                      traceparent's decision always wins, so a trace is never cut in half.
+                    pattern: ^(0(\.[0-9]{1,6})?|1(\.0{1,6})?)$
+                    type: string
+                  serviceName:
+                    description: |-
+                      service.name resource attribute (default vanguard-proxy). Each pod also
+                      reports service.instance.id = its pod name.
+                    maxLength: 128
+                    minLength: 1
+                    type: string
+                required:
+                - enabled
+                type: object
+                x-kubernetes-validations:
+                - message: endpoint is required when tracing is enabled
+                  rule: '!self.enabled || has(self.endpoint)'
               upstreamFallback:
                 description: Optional fallback upstream used when the primary's circuit
                   is open.
@@ -138,7 +220,7 @@ spec:
             description: CacheClusterStatus is the observed state of a CacheCluster.
             properties:
               conditions:
-                description: 'Conditions: Available, ConfigSynced.'
+                description: 'Conditions: Available, ConfigSynced, TracingReady.'
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -223,6 +305,36 @@ spec:
                   the admin API).
                 format: int32
                 type: integer
+              tracing:
+                description: Tracing as reported by the pods (nil until the first
+                  reconcile).
+                properties:
+                  configuredReplicas:
+                    description: Ready pods whose proxy reports exactly the configured
+                      tracing settings.
+                    format: int32
+                    type: integer
+                  enabled:
+                    description: Tracing is enabled in the applied spec.
+                    type: boolean
+                  exportFailingReplicas:
+                    description: Ready pods whose most recent OTLP export failed.
+                    format: int32
+                    type: integer
+                  lastExportError:
+                    description: Error of the most recent failed export (one failing
+                      pod's, if several).
+                    type: string
+                  samplerRatio:
+                    description: Sampling ratio in effect (canonical form of spec.tracing.samplerRatio).
+                    type: string
+                  tracesEndpoint:
+                    description: OTLP traces URL the pods are configured to export
+                      to.
+                    type: string
+                required:
+                - enabled
+                type: object
             type: object
         type: object
     served: true

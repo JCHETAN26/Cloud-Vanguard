@@ -49,6 +49,7 @@ func main() {
 	}
 	if err := (&controller.CacheClusterReconciler{
 		Client:       mgr.GetClient(),
+		APIReader:    mgr.GetAPIReader(),
 		Scheme:       mgr.GetScheme(),
 		Pusher:       controller.NewHTTPPusher(),
 		ResyncPeriod: resync,

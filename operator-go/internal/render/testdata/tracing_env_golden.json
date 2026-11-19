@@ -1,0 +1,66 @@
+[
+  {
+    "name": "LISTEN_PORT",
+    "value": "8080"
+  },
+  {
+    "name": "ADMIN_ADDR",
+    "value": "0.0.0.0"
+  },
+  {
+    "name": "ADMIN_PORT",
+    "value": "9901"
+  },
+  {
+    "name": "UPSTREAM_URL",
+    "value": "http://vllm:8000"
+  },
+  {
+    "name": "RING_VNODES",
+    "value": "1000"
+  },
+  {
+    "name": "CACHE_MAX_MB",
+    "value": "512"
+  },
+  {
+    "name": "CACHE_TTL_S",
+    "value": "3600"
+  },
+  {
+    "name": "CONTROL_FILE",
+    "value": "/etc/vanguard/control/control.json"
+  },
+  {
+    "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "value": "http://otel-collector.observability:4318"
+  },
+  {
+    "name": "OTEL_TRACES_SAMPLER",
+    "value": "parentbased_traceidratio"
+  },
+  {
+    "name": "OTEL_TRACES_SAMPLER_ARG",
+    "value": "0.25"
+  },
+  {
+    "name": "OTEL_SERVICE_NAME",
+    "value": "vanguard-prod"
+  },
+  {
+    "name": "OTEL_BSP_SCHEDULE_DELAY",
+    "value": "2000"
+  },
+  {
+    "name": "OTEL_BSP_MAX_QUEUE_SIZE",
+    "value": "8192"
+  },
+  {
+    "name": "OTEL_BSP_MAX_EXPORT_BATCH_SIZE",
+    "value": "1024"
+  },
+  {
+    "name": "OTEL_EXPORTER_OTLP_TIMEOUT",
+    "value": "5000"
+  }
+]

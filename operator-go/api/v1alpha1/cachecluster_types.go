@@ -49,6 +49,12 @@ type CacheClusterSpec struct {
 	// +optional
 	Persistence *PersistenceSpec `json:"persistence,omitempty"`
 
+	// OpenTelemetry tracing: vanguard-proxy exports spans over OTLP/HTTP to a
+	// collector. Rendered into the pods' OTEL_* environment, so changing it
+	// rolls the pods; leaving it unchanged never does.
+	// +optional
+	Tracing *TracingSpec `json:"tracing,omitempty"`
+
 	// Container image for vanguard-proxy.
 	// +kubebuilder:default="ghcr.io/jchetan26/vanguard-proxy:0.3.0"
 	// +optional
@@ -71,6 +77,97 @@ type PersistenceSpec struct {
 	// +kubebuilder:default=60
 	// +optional
 	SnapshotIntervalSeconds int32 `json:"snapshotIntervalSeconds,omitempty"`
+}
+
+// TracingSpec configures span export from every gateway pod.
+// +kubebuilder:validation:XValidation:rule="!self.enabled || has(self.endpoint)",message="endpoint is required when tracing is enabled"
+type TracingSpec struct {
+	// Export spans. When false the OTEL_* variables are not set at all.
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled"`
+
+	// OTLP/HTTP base URL of the collector, e.g. http://otel-collector.observability:4318.
+	// Spans are POSTed to <endpoint>/v1/traces. Plain http only: run a
+	// collector (or agent) in-cluster and let it handle TLS to the backend.
+	// +kubebuilder:validation:Pattern=`^http://[^\s/]+(/\S*)?$`
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:XValidation:rule="!self.endsWith('/v1/traces') && !self.endsWith('/v1/traces/')",message="give the collector base URL; /v1/traces is appended"
+	// +optional
+	Endpoint string `json:"endpoint,omitempty"`
+
+	// Fraction of new traces to sample, as a decimal string in [0, 1]
+	// (OTEL_TRACES_SAMPLER_ARG). Sampling is parent-based: an incoming
+	// traceparent's decision always wins, so a trace is never cut in half.
+	// +kubebuilder:validation:Pattern=`^(0(\.[0-9]{1,6})?|1(\.0{1,6})?)$`
+	// +kubebuilder:default="1"
+	// +optional
+	SamplerRatio string `json:"samplerRatio,omitempty"`
+
+	// service.name resource attribute (default vanguard-proxy). Each pod also
+	// reports service.instance.id = its pod name.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=128
+	// +optional
+	ServiceName string `json:"serviceName,omitempty"`
+
+	// Batch span processor settings (OTEL_BSP_*); unset fields keep the
+	// proxy defaults (5000 ms, queue 2048, batch 512, timeout 10000 ms).
+	// +optional
+	Batch *TracingBatchSpec `json:"batch,omitempty"`
+}
+
+// TracingBatchSpec tunes span batching and export.
+// +kubebuilder:validation:XValidation:rule="(has(self.maxExportBatchSize) ? self.maxExportBatchSize : 512) <= (has(self.maxQueueSize) ? self.maxQueueSize : 2048)",message="maxExportBatchSize must not exceed maxQueueSize (defaults 512 and 2048)"
+type TracingBatchSpec struct {
+	// Max delay between exports (OTEL_BSP_SCHEDULE_DELAY).
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=3600000
+	// +optional
+	ScheduleDelayMillis *int32 `json:"scheduleDelayMillis,omitempty"`
+
+	// Ended spans buffered per pod; more are dropped and counted (OTEL_BSP_MAX_QUEUE_SIZE).
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=16777216
+	// +optional
+	MaxQueueSize *int32 `json:"maxQueueSize,omitempty"`
+
+	// Spans per OTLP request (OTEL_BSP_MAX_EXPORT_BATCH_SIZE).
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=1048576
+	// +optional
+	MaxExportBatchSize *int32 `json:"maxExportBatchSize,omitempty"`
+
+	// OTLP request timeout (OTEL_EXPORTER_OTLP_TIMEOUT).
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=600000
+	// +optional
+	ExportTimeoutMillis *int32 `json:"exportTimeoutMillis,omitempty"`
+}
+
+// TracingStatus is the tracing state reported by the ready pods.
+type TracingStatus struct {
+	// Tracing is enabled in the applied spec.
+	Enabled bool `json:"enabled"`
+
+	// OTLP traces URL the pods are configured to export to.
+	// +optional
+	TracesEndpoint string `json:"tracesEndpoint,omitempty"`
+
+	// Sampling ratio in effect (canonical form of spec.tracing.samplerRatio).
+	// +optional
+	SamplerRatio string `json:"samplerRatio,omitempty"`
+
+	// Ready pods whose proxy reports exactly the configured tracing settings.
+	// +optional
+	ConfiguredReplicas int32 `json:"configuredReplicas,omitempty"`
+
+	// Ready pods whose most recent OTLP export failed.
+	// +optional
+	ExportFailingReplicas int32 `json:"exportFailingReplicas,omitempty"`
+
+	// Error of the most recent failed export (one failing pod's, if several).
+	// +optional
+	LastExportError string `json:"lastExportError,omitempty"`
 }
 
 // CacheClusterStatus is the observed state of a CacheCluster.
@@ -99,7 +196,11 @@ type CacheClusterStatus struct {
 	// +optional
 	SyncedReplicas int32 `json:"syncedReplicas,omitempty"`
 
-	// Conditions: Available, ConfigSynced.
+	// Tracing as reported by the pods (nil until the first reconcile).
+	// +optional
+	Tracing *TracingStatus `json:"tracing,omitempty"`
+
+	// Conditions: Available, ConfigSynced, TracingReady.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
@@ -114,6 +215,7 @@ type CacheClusterStatus struct {
 // +kubebuilder:printcolumn:name="Ready",type=integer,JSONPath=`.status.readyReplicas`
 // +kubebuilder:printcolumn:name="Synced",type=integer,JSONPath=`.status.syncedReplicas`
 // +kubebuilder:printcolumn:name="Config",type=integer,JSONPath=`.status.configVersion`
+// +kubebuilder:printcolumn:name="Tracing",type=string,JSONPath=`.status.conditions[?(@.type=="TracingReady")].reason`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // CacheCluster is a ring of vanguard-proxy gateways.

@@ -18,8 +18,8 @@ Per-tenant rate limits and token budgets protect the upstream.
 
 ### Roadmap
 
-1. **Milestone 1** — core proxy + telemetry baseline: existing proxy, ring, snapshots and Prometheus metrics, plus OpenTelemetry tracing and the monorepo layout. *(this branch)*
-2. **Milestone 2** — operator (`CacheCluster` reconciliation) and CSI/QEMU storage orchestration (built in Phases 3–4; tracing settings are not yet exposed through the CRD).
+1. **Milestone 1** — core proxy + telemetry baseline: existing proxy, ring, snapshots and Prometheus metrics, plus OpenTelemetry tracing and the monorepo layout.
+2. **Milestone 2** — operator (`CacheCluster` reconciliation) and CSI/QEMU storage orchestration: `spec.tracing` → pod `OTEL_*` env with churn-free reconciles, `TracingReady` status from pod reports, CSI/QMP failure-path hardening.
 3. **Milestone 3** — Python/PyTorch distributed PEFT/LoRA + quantization, Arrow data loading, MLflow/vLLM evaluation.
 4. **Milestone 4** — reproducible end-to-end benchmarks, Docker/cluster deployment checks, fault injection.
 

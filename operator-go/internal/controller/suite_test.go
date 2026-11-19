@@ -24,6 +24,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cachev1alpha1 "github.com/JCHETAN26/Cloud-Vanguard/operator-go/api/v1alpha1"
+	"github.com/JCHETAN26/Cloud-Vanguard/operator-go/internal/controlpb"
 )
 
 // The controller tests run both reconcilers in a real manager against a real
@@ -43,20 +44,31 @@ type recordingPusher struct {
 	pushes  map[string][]byte // endpoint -> last document
 	tokens  map[string]string
 	failing map[string]bool
+	tracing map[string]*controlpb.TracingStatus // endpoint -> reported tracing state
 }
 
-func (p *recordingPusher) Push(_ context.Context, endpoint, token string, doc []byte) (int64, error) {
+func (p *recordingPusher) Push(_ context.Context, endpoint, token string, doc []byte) (PushResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.failing[endpoint] {
-		return 0, fmt.Errorf("connection refused")
+		return PushResult{}, fmt.Errorf("connection refused")
 	}
 	if p.pushes == nil {
 		p.pushes, p.tokens = map[string][]byte{}, map[string]string{}
 	}
 	p.pushes[endpoint] = append([]byte(nil), doc...)
 	p.tokens[endpoint] = token
-	return versionOf(doc), nil
+	return PushResult{ActiveVersion: versionOf(doc), Tracing: p.tracing[endpoint]}, nil
+}
+
+// setTracing makes the pod at `endpoint` report this tracing state.
+func (p *recordingPusher) setTracing(endpoint string, ts *controlpb.TracingStatus) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.tracing == nil {
+		p.tracing = map[string]*controlpb.TracingStatus{}
+	}
+	p.tracing[endpoint] = ts
 }
 
 func (p *recordingPusher) setFailing(endpoint string, fail bool) {
@@ -113,7 +125,7 @@ func TestMain(m *testing.M) {
 		fmt.Fprintln(os.Stderr, "manager:", err)
 		os.Exit(1)
 	}
-	if err := (&CacheClusterReconciler{Client: mgr.GetClient(), Scheme: scheme, Pusher: fakePush,
+	if err := (&CacheClusterReconciler{Client: mgr.GetClient(), APIReader: mgr.GetAPIReader(), Scheme: scheme, Pusher: fakePush,
 		ResyncPeriod: time.Hour}).SetupWithManager(mgr); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
