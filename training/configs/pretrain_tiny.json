@@ -1,0 +1,11 @@
+{
+  "mode": "full",
+  "model": {"d_model": 128, "n_layers": 4, "n_heads": 4, "d_ff": 344},
+  "steps": 300,
+  "batch_size": 32,
+  "lr": 0.003,
+  "warmup_steps": 20,
+  "log_every": 50,
+  "eval_examples": 50,
+  "run_name": "pretrain-tiny"
+}
