@@ -42,6 +42,10 @@ func (LocalAttacher) Detach(context.Context, *Volume, string) error { return nil
 // that controller with the volume ID as serial; the guest sees
 // /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_<serial>. SCSI hot-unplug is
 // immediate (no guest ACPI handshake), so Detach is synchronous.
+//
+// QEMU's QMP socket accepts one client at a time: the attacher needs the
+// monitor to itself. For VMs managed by libvirt (which holds the monitor),
+// attach through libvirt (virsh attach-device) instead.
 type QMPAttacher struct {
 	// SocketTemplate maps a node ID to its VM's QMP socket; "{node}" is replaced.
 	SocketTemplate string

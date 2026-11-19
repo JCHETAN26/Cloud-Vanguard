@@ -1,4 +1,4 @@
-# vanguard-proxy (Phases 1–3)
+# vanguard-proxy (Phases 1–4)
 
 C++20, Linux `epoll` (edge-triggered), no framework. Dependencies: nlohmann/json,
 plus GoogleTest for tests. CMake uses the system packages if present and fetches
@@ -61,6 +61,18 @@ in [`proto/vanguard/control/v1/control.proto`](../proto/vanguard/control/v1/cont
 
 Static setup without an operator: `PEERS=n0=10.0.0.1:8080,n1=10.0.0.2:8080 NODE_ID=n0`.
 
+## Warm-cache snapshots (Phase 4)
+
+`SNAPSHOT_PATH` points at a file (filesystem volume) or a **raw block device** (CSI `volumeMode: Block`, set
+`SNAPSHOT_MODE=block`). The cache is written as a CRC-checked record stream:
+- **On disk:** a filesystem volume is written to a temp file, fsynced and renamed. A raw block device uses two
+  alternating slots; the data goes to the older slot and is fsynced, and only then is that slot's header (generation,
+  length, CRCs) written and fsynced. Loading picks the newest slot whose checksums verify, so a crash at any point
+  leaves the previous snapshot readable.
+- **When:** every `SNAPSHOT_INTERVAL_S` seconds, on SIGTERM, and on `POST /admin/v1/snapshot`. A restore happens before
+  the proxy serves its first request (or on `POST /admin/v1/restore`). TTLs keep counting through downtime.
+- **Off the hot path:** all snapshot I/O runs on its own thread; `GET /admin/v1/snapshot` reports progress.
+
 ## Layout
 
 | File | Responsibility |
@@ -72,6 +84,7 @@ Static setup without an operator: `PEERS=n0=10.0.0.1:8080,n1=10.0.0.2:8080 NODE_
 | `include/vanguard/rate_limiter.hpp` | per-tenant RPM + TPM token buckets, sharded mutexes |
 | `include/vanguard/llm_request.hpp` | chat request validation, canonical cache key, token estimate |
 | `include/vanguard/sse.hpp` | SSE event splitter, `[DONE]` detection, HTTP chunk framing |
+| `include/vanguard/snapshot.hpp` | warm-cache snapshot format, file mode and A/B block-slot mode |
 | `include/vanguard/control.hpp` | control messages (JSON), versioned ring/tenant snapshots, forwarding decision, peer resolution |
 | `include/vanguard/circuit_breaker.hpp` | closed/open/half-open breaker with exponential backoff; `FailoverRouter` policy |
 | `include/vanguard/embedding.hpp` | prompt normalization + guard, lexical encoder, `/v1/embeddings` client helpers |

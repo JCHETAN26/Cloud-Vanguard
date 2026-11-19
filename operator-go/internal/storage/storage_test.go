@@ -294,17 +294,23 @@ func TestQMPAttachRealQEMU(t *testing.T) {
 		t.Fatalf("attach: %v (qemu: %s)", err, vmErr.String())
 	}
 
-	c, err := DialQMP(ctx, socket)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-	raw, err := c.Execute("query-block", nil)
-	if err != nil {
-		t.Fatal(err)
+	// QEMU's QMP socket serves one client at a time, so inspect the VM over a
+	// short-lived connection and close it before the driver detaches (the
+	// attacher needs exclusive access to the monitor; see attacher.go).
+	query := func(cmd string, args any) []byte {
+		c, err := DialQMP(ctx, socket)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer c.Close()
+		raw, err := c.Execute(cmd, args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return raw
 	}
 	nodeName, deviceID, _ := qmpNames(vol)
-	if !bytes.Contains(raw, []byte(vol.Path)) || !bytes.Contains(raw, []byte(deviceID)) {
+	if raw := query("query-block", nil); !bytes.Contains(raw, []byte(vol.Path)) || !bytes.Contains(raw, []byte(deviceID)) {
 		t.Fatalf("VM does not see the disk after attach: %s", raw)
 	}
 	t.Logf("attached %s as %s (guest %s)", filepath.Base(vol.Path), deviceID, dev)
@@ -312,8 +318,7 @@ func TestQMPAttachRealQEMU(t *testing.T) {
 	if err := store.Detach(ctx, vol.ID, "node-1"); err != nil {
 		t.Fatalf("detach: %v", err)
 	}
-	raw, _ = c.Execute("query-named-block-nodes", map[string]any{"flat": true})
-	if bytes.Contains(raw, []byte(nodeName)) {
+	if raw := query("query-named-block-nodes", map[string]any{"flat": true}); bytes.Contains(raw, []byte(nodeName)) {
 		t.Fatalf("block node still present after detach: %s", raw)
 	}
 	if err := store.DeleteVolume(vol.ID); err != nil {

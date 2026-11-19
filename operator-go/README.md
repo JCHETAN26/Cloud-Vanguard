@@ -43,6 +43,27 @@ All of them carry a controller `ownerReference`, so deleting the `CacheCluster` 
 5. **Status.** The TenantCachePolicy controller reads the rendered document back and sets `Applied=True` once
    the policy's current `metadata.generation` is present in every target cluster.
 
+## Persistence and the CSI driver (Phase 4)
+
+`spec.persistence` gives every gateway pod a retained, raw block PVC (`volumeMode: Block`, mounted at
+`/dev/vanguard-cache`), which vanguard-proxy snapshots its cache to. A restarted or rescheduled pod re-attaches its own
+volume and starts warm.
+
+The `csi.cloudvanguard.io` driver (`cmd/csi-driver`, `internal/csi`, `internal/storage`) provides those volumes:
+- **Controller:** create, delete and expand volumes as `qemu-img` raw/qcow2 images; attach them to a node (the image
+  path for single-host clusters, or QMP `blockdev-add` + `scsi-hd` hot-plug into a node VM); take snapshots
+  (`qemu-img convert -c -O qcow2`), restore from snapshots, and list volumes and snapshots with pagination.
+- **Node:** stage and publish. `HostMounter` (privileged) runs mkfs, mount and bind mounts; `LinkMounter` (no
+  privileges) exposes block volumes via symlinks and simulates filesystem volumes.
+
+`cmd/csictl` issues the same RPCs as the Kubernetes sidecars and kubelet, for scripts. Manifests are in `../deploy/csi`.
+
+Tests:
+- **CSI conformance:** the upstream `csi-test` sanity suite, for block and filesystem volumes.
+- **QEMU data integrity:** volume bytes survive a qcow2 snapshot and restore.
+- **QMP:** the command protocol against a fake QMP server, plus real hot-plug into a QEMU VM running under TCG when
+  `qemu-system-x86_64` is installed.
+
 ## Development
 
 ```bash
