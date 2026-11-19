@@ -29,8 +29,9 @@ struct TenantOverride {
 // Extracts <token> from "Bearer <token>" (scheme is case-insensitive).
 std::optional<std::string_view> bearer_token(std::string_view authorization);
 
-// Maps API keys to tenants. Loaded once at startup in Phase 1; the Phase 4
-// operator will push TenantCachePolicy updates instead.
+// Maps API keys to tenants. The static part comes from TENANTS_FILE; the
+// control plane layers dynamic TenantCachePolicy overrides on top
+// (with_overrides) and publishes a new immutable registry on every update.
 //
 // File format (JSON):
 //   {

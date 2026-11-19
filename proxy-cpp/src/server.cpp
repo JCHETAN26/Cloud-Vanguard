@@ -444,7 +444,6 @@ void Worker::run() {
   std::array<epoll_event, kMaxEvents> events{};
   auto last_sweep = Clock::now();
   while (!g_stop.load(std::memory_order_relaxed)) {
-    refresh_snapshots();
     const int timeout = next_timeout_ms(Clock::now());
     const int n = ::epoll_wait(epfd_, events.data(), static_cast<int>(events.size()), timeout);
     if (n < 0) {
@@ -452,6 +451,12 @@ void Worker::run() {
       std::fprintf(stderr, "[worker %d] epoll_wait: %s\n", index_, std::strerror(errno));
       break;
     }
+    // Pick up control-plane changes *after* waking, before touching any
+    // request: an update acknowledged to its sender (admin PUT response) is
+    // then visible to every request that sender issues afterwards, whichever
+    // worker handles it. Refreshing before epoll_wait instead let a worker
+    // that slept through an update serve its next request with stale state.
+    refresh_snapshots();
     const auto now = Clock::now();
     for (int i = 0; i < n; ++i) {
       const std::uint64_t id = events[i].data.u64;
