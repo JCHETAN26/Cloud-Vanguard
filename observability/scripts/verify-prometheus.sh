@@ -20,6 +20,7 @@ echo "== $("$PROMTOOL" --version | head -1)"
 
 UP_PORT=19490; PX_PORT=18490
 python3 "$ROOT/benchmarks/mock_upstream.py" --port $UP_PORT --min-latency-ms 1 --max-latency-ms 2 >/dev/null 2>&1 & PIDS+=($!)
+for _ in $(seq 100); do curl -fsS "http://127.0.0.1:$UP_PORT/healthz" >/dev/null 2>&1 && break; sleep 0.1; done
 LISTEN_PORT=$PX_PORT ADMIN_PORT=0 WORKERS=1 UPSTREAM_URL="http://127.0.0.1:$UP_PORT" \
 FALLBACK_UPSTREAM_URL="http://127.0.0.1:$UP_PORT" "$BINARY" >/dev/null 2>&1 & PIDS+=($!)
 for _ in $(seq 100); do curl -fsS "http://127.0.0.1:$PX_PORT/healthz" >/dev/null 2>&1 && break; sleep 0.1; done

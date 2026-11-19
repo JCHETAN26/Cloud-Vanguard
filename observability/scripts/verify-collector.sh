@@ -30,6 +30,7 @@ sed -e "s/0.0.0.0:4318/127.0.0.1:$OTLP_PORT/" -e "s/0.0.0.0:4317/127.0.0.1:14317
 "$OTELCOL" --config "$WORK/collector.yaml" >"$WORK/collector.log" 2>&1 & PIDS+=($!)
 python3 "$ROOT/benchmarks/mock_upstream.py" --port $UP_PORT --min-latency-ms 2 --max-latency-ms 5 --token-interval-ms 0 \
   >/dev/null 2>&1 & PIDS+=($!)
+for _ in $(seq 100); do curl -fsS "http://127.0.0.1:$UP_PORT/healthz" >/dev/null 2>&1 && break; sleep 0.1; done
 for _ in $(seq 100); do curl -fsS "http://127.0.0.1:$HC_PORT/" >/dev/null 2>&1 && break; sleep 0.1; done
 LISTEN_PORT=$PX_PORT ADMIN_PORT=0 WORKERS=2 NODE_ID=collector-check UPSTREAM_URL="http://127.0.0.1:$UP_PORT" \
 OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:$OTLP_PORT" OTEL_BSP_SCHEDULE_DELAY=100 \
