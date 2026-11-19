@@ -1,0 +1,423 @@
+{
+  "env": {
+    "date_utc": "2026-11-19T18:47:45Z",
+    "host": "codespaces-73aac1",
+    "kernel": "6.8.0-1070-azure",
+    "cpus": 4,
+    "python": "3.12.3",
+    "binary": "/home/vscode/m1/proxy-cpp/build-release/vanguard-proxy",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor"
+  },
+  "params": {
+    "binary": "/home/vscode/m1/proxy-cpp/build-release/vanguard-proxy",
+    "port": 8380,
+    "upstream_port": 9380,
+    "sink_port": 4380,
+    "workers": 2,
+    "unique": 2000,
+    "hits": 20000,
+    "miss_concurrency": 32,
+    "hit_concurrency": 8,
+    "hey_seconds": 10,
+    "hey_concurrency": 32,
+    "min_latency_ms": 20,
+    "max_latency_ms": 40,
+    "out": "/home/vscode/m1/benchmarks/results/milestone1_bench.json"
+  },
+  "runs": [
+    {
+      "config": "off",
+      "otel": {},
+      "miss": {
+        "phase": "miss",
+        "requests": 2000,
+        "completed": 2000,
+        "statuses": {
+          "200": 2000
+        },
+        "x_cache": {
+          "MISS": 2000
+        },
+        "p50_ms": 31.23752900000909,
+        "p95_ms": 39.96391200007565,
+        "p99_ms": 41.05395899978248,
+        "max_ms": 51.24667599966415,
+        "mean_ms": 31.084037695493176,
+        "rps": 1017.0938637952911,
+        "errors": 0
+      },
+      "hit": {
+        "phase": "hit",
+        "requests": 20000,
+        "completed": 20000,
+        "statuses": {
+          "200": 20000
+        },
+        "x_cache": {
+          "HIT": 20000
+        },
+        "p50_ms": 0.45243099975778023,
+        "p95_ms": 0.616965000062919,
+        "p99_ms": 1.016637999782688,
+        "max_ms": 4.018690000066272,
+        "mean_ms": 0.4699059643511646,
+        "rps": 16841.324960250116,
+        "errors": 0
+      },
+      "hey": {
+        "tool": "hey",
+        "seconds": 10,
+        "concurrency": 32,
+        "rps": 49396.809,
+        "p50_ms": 0.5,
+        "p95_ms": 1.5,
+        "p99_ms": 2.8,
+        "status_codes": {
+          "200": 493998
+        },
+        "ok_responses": 493998,
+        "non_200": [],
+        "errors": false
+      },
+      "server_hit_histogram": {
+        "count": 513998,
+        "p50_le_ms": 0.1,
+        "p95_le_ms": 0.1,
+        "p99_le_ms": 0.1
+      },
+      "tracing": {
+        "tracing_enabled": 0.0,
+        "trace_spans_started_total": 0.0,
+        "trace_spans_exported_total": 0.0,
+        "trace_spans_dropped_total": 0.0,
+        "trace_spans_failed_total": 0.0,
+        "trace_export_batches_total": 0.0,
+        "sink": {
+          "requests": 0,
+          "spans": 0,
+          "rejected": 0
+        }
+      },
+      "cache_hits_total": 513998.0,
+      "cache_misses_total": 2000.0,
+      "exit_code": 0
+    },
+    {
+      "config": "on-100",
+      "otel": {
+        "OTEL_TRACES_SAMPLER": "parentbased_always_on"
+      },
+      "miss": {
+        "phase": "miss",
+        "requests": 2000,
+        "completed": 2000,
+        "statuses": {
+          "200": 2000
+        },
+        "x_cache": {
+          "MISS": 2000
+        },
+        "p50_ms": 31.029311000111193,
+        "p95_ms": 39.933847000156675,
+        "p99_ms": 40.988025999922684,
+        "max_ms": 47.90625700024975,
+        "mean_ms": 30.900979603502268,
+        "rps": 1021.4998881435987,
+        "errors": 0
+      },
+      "hit": {
+        "phase": "hit",
+        "requests": 20000,
+        "completed": 20000,
+        "statuses": {
+          "200": 20000
+        },
+        "x_cache": {
+          "HIT": 20000
+        },
+        "p50_ms": 0.49711699966792366,
+        "p95_ms": 0.6509660001938755,
+        "p99_ms": 1.0121909999725176,
+        "max_ms": 2.7256230000602955,
+        "mean_ms": 0.5007668421528934,
+        "rps": 15803.47148015219,
+        "errors": 0
+      },
+      "hey": {
+        "tool": "hey",
+        "seconds": 10,
+        "concurrency": 32,
+        "rps": 36417.3669,
+        "p50_ms": 0.6,
+        "p95_ms": 2.5,
+        "p99_ms": 3.6,
+        "status_codes": {
+          "200": 364248
+        },
+        "ok_responses": 364248,
+        "non_200": [],
+        "errors": false
+      },
+      "server_hit_histogram": {
+        "count": 384248,
+        "p50_le_ms": 0.1,
+        "p95_le_ms": 0.1,
+        "p99_le_ms": 0.1
+      },
+      "tracing": {
+        "tracing_enabled": 1.0,
+        "trace_spans_started_total": 388248.0,
+        "trace_spans_exported_total": 214312.0,
+        "trace_spans_dropped_total": 114544.0,
+        "trace_spans_failed_total": 0.0,
+        "trace_export_batches_total": 116.0,
+        "sink": {
+          "requests": 117,
+          "spans": 216360,
+          "rejected": 0
+        }
+      },
+      "cache_hits_total": 384248.0,
+      "cache_misses_total": 2000.0,
+      "exit_code": 0
+    },
+    {
+      "config": "on-100-unreachable",
+      "otel": {
+        "OTEL_TRACES_SAMPLER": "parentbased_always_on",
+        "_endpoint": "http://127.0.0.1:1"
+      },
+      "miss": {
+        "phase": "miss",
+        "requests": 2000,
+        "completed": 2000,
+        "statuses": {
+          "200": 2000
+        },
+        "x_cache": {
+          "MISS": 2000
+        },
+        "p50_ms": 30.824401999780093,
+        "p95_ms": 39.85869600001024,
+        "p99_ms": 41.04900099991937,
+        "max_ms": 48.25993100030246,
+        "mean_ms": 30.886749417499008,
+        "rps": 1023.9034771927846,
+        "errors": 0
+      },
+      "hit": {
+        "phase": "hit",
+        "requests": 20000,
+        "completed": 20000,
+        "statuses": {
+          "200": 20000
+        },
+        "x_cache": {
+          "HIT": 20000
+        },
+        "p50_ms": 0.48664099995221477,
+        "p95_ms": 0.6379159999596595,
+        "p99_ms": 0.7885199997872405,
+        "max_ms": 10.842289999800414,
+        "mean_ms": 0.4983009166511465,
+        "rps": 15886.590018554702,
+        "errors": 0
+      },
+      "hey": {
+        "tool": "hey",
+        "seconds": 10,
+        "concurrency": 32,
+        "rps": 46741.5691,
+        "p50_ms": 0.6,
+        "p95_ms": 1.6,
+        "p99_ms": 2.6,
+        "status_codes": {
+          "200": 467458
+        },
+        "ok_responses": 467458,
+        "non_200": [],
+        "errors": false
+      },
+      "server_hit_histogram": {
+        "count": 487458,
+        "p50_le_ms": 0.1,
+        "p95_le_ms": 0.1,
+        "p99_le_ms": 0.1
+      },
+      "tracing": {
+        "tracing_enabled": 1.0,
+        "trace_spans_started_total": 491458.0,
+        "trace_spans_exported_total": 0.0,
+        "trace_spans_dropped_total": 0.0,
+        "trace_spans_failed_total": 491458.0,
+        "trace_export_batches_total": 427.0,
+        "sink": {
+          "requests": 0,
+          "spans": 0,
+          "rejected": 0
+        }
+      },
+      "cache_hits_total": 487458.0,
+      "cache_misses_total": 2000.0,
+      "exit_code": 0
+    },
+    {
+      "config": "on-10",
+      "otel": {
+        "OTEL_TRACES_SAMPLER": "parentbased_traceidratio",
+        "OTEL_TRACES_SAMPLER_ARG": "0.1"
+      },
+      "miss": {
+        "phase": "miss",
+        "requests": 2000,
+        "completed": 2000,
+        "statuses": {
+          "200": 2000
+        },
+        "x_cache": {
+          "MISS": 2000
+        },
+        "p50_ms": 30.70426900012535,
+        "p95_ms": 39.84995299970251,
+        "p99_ms": 41.12743799987584,
+        "max_ms": 51.600772000256256,
+        "mean_ms": 30.885465861004377,
+        "rps": 1022.2653257215363,
+        "errors": 0
+      },
+      "hit": {
+        "phase": "hit",
+        "requests": 20000,
+        "completed": 20000,
+        "statuses": {
+          "200": 20000
+        },
+        "x_cache": {
+          "HIT": 20000
+        },
+        "p50_ms": 0.43303200027366984,
+        "p95_ms": 0.5604809998658311,
+        "p99_ms": 0.6666290000794106,
+        "max_ms": 9.38732299982803,
+        "mean_ms": 0.4497997632976876,
+        "rps": 17607.02928388247,
+        "errors": 0
+      },
+      "hey": {
+        "tool": "hey",
+        "seconds": 10,
+        "concurrency": 32,
+        "rps": 48721.4909,
+        "p50_ms": 0.5,
+        "p95_ms": 1.5,
+        "p99_ms": 2.6,
+        "status_codes": {
+          "200": 487244
+        },
+        "ok_responses": 487244,
+        "non_200": [],
+        "errors": false
+      },
+      "server_hit_histogram": {
+        "count": 507244,
+        "p50_le_ms": 0.1,
+        "p95_le_ms": 0.1,
+        "p99_le_ms": 0.1
+      },
+      "tracing": {
+        "tracing_enabled": 1.0,
+        "trace_spans_started_total": 51017.0,
+        "trace_spans_exported_total": 51017.0,
+        "trace_spans_dropped_total": 0.0,
+        "trace_spans_failed_total": 0.0,
+        "trace_export_batches_total": 55.0,
+        "sink": {
+          "requests": 55,
+          "spans": 51017,
+          "rejected": 0
+        }
+      },
+      "cache_hits_total": 507244.0,
+      "cache_misses_total": 2000.0,
+      "exit_code": 0
+    },
+    {
+      "config": "off-again",
+      "otel": {},
+      "miss": {
+        "phase": "miss",
+        "requests": 2000,
+        "completed": 2000,
+        "statuses": {
+          "200": 2000
+        },
+        "x_cache": {
+          "MISS": 2000
+        },
+        "p50_ms": 30.856024000058824,
+        "p95_ms": 39.97167299985449,
+        "p99_ms": 40.79260200023782,
+        "max_ms": 48.76098000022466,
+        "mean_ms": 30.888394871497216,
+        "rps": 1023.0263151768384,
+        "errors": 0
+      },
+      "hit": {
+        "phase": "hit",
+        "requests": 20000,
+        "completed": 20000,
+        "statuses": {
+          "200": 20000
+        },
+        "x_cache": {
+          "HIT": 20000
+        },
+        "p50_ms": 0.40715399973123567,
+        "p95_ms": 0.5422640001597756,
+        "p99_ms": 0.6370850001076178,
+        "max_ms": 11.576449000131106,
+        "mean_ms": 0.42890381024733415,
+        "rps": 18464.753754673904,
+        "errors": 0
+      },
+      "hey": {
+        "tool": "hey",
+        "seconds": 10,
+        "concurrency": 32,
+        "rps": 52366.2213,
+        "p50_ms": 0.5,
+        "p95_ms": 1.4,
+        "p99_ms": 2.0,
+        "status_codes": {
+          "200": 523692
+        },
+        "ok_responses": 523692,
+        "non_200": [],
+        "errors": false
+      },
+      "server_hit_histogram": {
+        "count": 543692,
+        "p50_le_ms": 0.1,
+        "p95_le_ms": 0.1,
+        "p99_le_ms": 0.1
+      },
+      "tracing": {
+        "tracing_enabled": 0.0,
+        "trace_spans_started_total": 0.0,
+        "trace_spans_exported_total": 0.0,
+        "trace_spans_dropped_total": 0.0,
+        "trace_spans_failed_total": 0.0,
+        "trace_export_batches_total": 0.0,
+        "sink": {
+          "requests": 0,
+          "spans": 0,
+          "rejected": 0
+        }
+      },
+      "cache_hits_total": 543692.0,
+      "cache_misses_total": 2000.0,
+      "exit_code": 0
+    }
+  ],
+  "problems": []
+}

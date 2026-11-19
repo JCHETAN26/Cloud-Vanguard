@@ -113,13 +113,16 @@ std::string Metrics::render(const CacheStats& cache, const ControlReport& contro
   counter(out, "vanguard_auth_failures_total", "Requests rejected for missing/unknown API key.", load(auth_failures));
   counter(out, "vanguard_bad_requests_total", "Malformed HTTP or chat requests.", load(bad_requests));
 
-  counter(out, "vanguard_upstream_requests_total", "Requests forwarded upstream (cache misses).",
+  // Aggregates; per-target breakdowns are vanguard_upstream_<x>_total{upstream=...}
+  // (a family may only be declared once, so these names must differ).
+  counter(out, "vanguard_llm_requests_total", "Requests sent to an LLM upstream (cache misses, all targets).",
           load(upstream_requests));
   counter(out, "vanguard_upstream_connects_total", "New upstream TCP connections opened.", load(upstream_connects));
   counter(out, "vanguard_upstream_retries_total", "Requests retried after a stale pooled connection.",
           load(upstream_retries));
   counter(out, "vanguard_upstream_errors_total", "Upstream connect/protocol failures.", load(upstream_errors));
-  counter(out, "vanguard_upstream_timeouts_total", "Upstream requests that timed out.", load(upstream_timeouts));
+  counter(out, "vanguard_outbound_timeouts_total", "Outbound calls that timed out (LLM upstreams, embedder, peers).",
+          load(upstream_timeouts));
   counter(out, "vanguard_client_aborts_total", "Clients that disconnected before their response completed.",
           load(client_aborts));
   counter(out, "vanguard_estimated_tokens_forwarded_total", "Estimated tokens sent upstream (TPM accounting).",

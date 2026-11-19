@@ -1,4 +1,4 @@
-# vanguard-proxy (Phases 1–4)
+# vanguard-proxy (Phases 1–4, Milestone 1 tracing)
 
 C++20, Linux `epoll` (edge-triggered), no framework. Dependencies: nlohmann/json,
 plus GoogleTest for tests. CMake uses the system packages if present and fetches
@@ -73,6 +73,15 @@ Static setup without an operator: `PEERS=n0=10.0.0.1:8080,n1=10.0.0.2:8080 NODE_
   the proxy serves its first request (or on `POST /admin/v1/restore`). TTLs keep counting through downtime.
 - **Off the hot path:** all snapshot I/O runs on its own thread; `GET /admin/v1/snapshot` reports progress.
 
+## Tracing (Milestone 1)
+
+OpenTelemetry traces over OTLP/HTTP (JSON encoding), enabled with `OTEL_EXPORTER_OTLP_ENDPOINT`. One SERVER span
+per chat request, plus CLIENT spans for each LLM upstream attempt, embedding call and peer forward. W3C
+`traceparent` is continued from the caller and injected into every outbound request, so a request forwarded to its
+ring owner is a single trace across nodes. Span schema, settings and trade-offs:
+[`observability/README.md`](../observability/README.md). Implementation: `include/vanguard/tracing.hpp`,
+`src/tracing.cpp`.
+
 ## Layout
 
 | File | Responsibility |
@@ -95,7 +104,7 @@ Static setup without an operator: `PEERS=n0=10.0.0.1:8080,n1=10.0.0.2:8080 NODE_
 
 * `POST /v1/chat/completions` (OpenAI-compatible, `stream: true|false`)
 * `GET /healthz`
-* `GET /metrics` (Prometheus text format: cache, rate limit, upstream counters, latency histograms)
+* `GET /metrics` (Prometheus text format: cache, rate limit, upstream counters, latency histograms, trace exporter counters)
 
 Response headers: `X-Cache: HIT|SEMANTIC-HIT|MISS|BYPASS`, `X-Vanguard-Similarity` (semantic hits),
 `X-Vanguard-Upstream: primary|fallback`, `X-Vanguard-Failover: <reason>`, `X-Vanguard-Cache-Key` (16-hex prefix),

@@ -1,0 +1,47 @@
+# OpenTelemetry Collector pipeline for CloudVanguard traces.
+#
+#   vanguard-proxy --OTLP/HTTP JSON--> collector :4318 --> debug log (+ your backend)
+#
+# Point each proxy at the collector:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+#
+# Works with the core distribution (otelcol) and contrib (otelcol-contrib).
+# Validated by observability/scripts/verify-collector.sh.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 20
+  batch:
+    send_batch_size: 1024
+    timeout: 2s
+
+exporters:
+  debug:
+    verbosity: basic
+  # Send to a tracing backend (Jaeger >= 1.35, Grafana Tempo, ...) by
+  # uncommenting and adding it to the pipeline below:
+  # otlp/jaeger:
+  #   endpoint: jaeger-collector:4317
+  #   tls:
+  #     insecure: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
