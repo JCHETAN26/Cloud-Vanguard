@@ -87,6 +87,7 @@ struct Metrics {
   std::atomic<std::uint64_t> semantic_inserts{0};
   std::atomic<std::uint64_t> semantic_stale{0};
   std::atomic<std::uint64_t> semantic_skipped{0};  // embedding unavailable
+  std::atomic<std::uint64_t> semantic_salient_rejections{0};
 
   LatencyHistogram latency_hit;
   LatencyHistogram latency_hit_stream;

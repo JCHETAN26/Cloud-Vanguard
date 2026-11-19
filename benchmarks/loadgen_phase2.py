@@ -10,9 +10,10 @@ Sections (pick with --section):
   failover   primary + fallback mocks: baseline, primary 5xx, primary slow
              (>300 ms time to first byte), primary dropping connections,
              exponential-backoff probe spacing, recovery time, and both down.
-  neural     remote encoder (bge-small sidecar): calibration table, true
-             paraphrase hit rate and false positives through the proxy.
-  degraded   remote encoder with the sidecar stopped: requests must still be
+  neural     SEMANTIC_MODE=neural (bge-small sidecar, threshold 0.96 + salient
+             guard): calibration table, true paraphrase hit rate and false
+             positives through the proxy.
+  degraded   neural mode with the sidecar stopped: requests must still be
              served (exact-match only) and the embedder circuit must open.
 
 Exit status is non-zero if any check fails.
@@ -353,6 +354,8 @@ async def section_neural(args, checks: Checks, run: str) -> list:
     m = http_get(args.proxy + "/metrics")
     emb = server_histogram(m, "le=", "vanguard_embedding_duration_seconds")
     print(f"  embedding call latency (server-side): P50<={emb['p50_le_ms']:g}ms P99<={emb['p99_le_ms']:g}ms")
+    print(f"  matches above threshold rejected by the salient-token guard: "
+          f"{metric(m, 'vanguard_semantic_salient_rejections_total'):.0f}")
     checks.check(not fps, f"neural: 0 false positives on {len(NEAR_MISSES)} near-miss questions {fps}")
     checks.check(len(hits) >= 1, f"neural: true paraphrases produce SEMANTIC-HITs ({len(hits)}/{len(PARAPHRASES)})")
     return [s]

@@ -50,7 +50,7 @@ common_env=(
 )
 
 echo "==> proxy A :$PROXY_A (lexical semantic cache, primary + fallback)"
-env "${common_env[@]}" LISTEN_PORT=$PROXY_A EMBEDDER=lexical \
+env "${common_env[@]}" LISTEN_PORT=$PROXY_A SEMANTIC_MODE=lexical \
   "$BUILD_DIR/vanguard-proxy" >"$RESULTS/proxy_a.log" 2>&1 & PIDS+=($!)
 wait_for "http://127.0.0.1:$PROXY_A/healthz" "proxy A"
 
@@ -84,11 +84,11 @@ if [[ "${SKIP_NEURAL:-0}" != 1 ]]; then
   PIDS+=($EMB_PID)
   wait_for "http://127.0.0.1:$EMBEDDER/healthz" "embedder sidecar" 300
   head -1 "$RESULTS/embedder.log"
-  env "${common_env[@]}" LISTEN_PORT=$PROXY_B EMBEDDER=remote EMBEDDER_URL="http://127.0.0.1:$EMBEDDER" \
+  env "${common_env[@]}" LISTEN_PORT=$PROXY_B SEMANTIC_MODE=neural EMBEDDER_URL="http://127.0.0.1:$EMBEDDER" \
     EMBEDDER_TIMEOUT_MS=200 "$BUILD_DIR/vanguard-proxy" >"$RESULTS/proxy_b.log" 2>&1 & PIDS+=($!)
   wait_for "http://127.0.0.1:$PROXY_B/healthz" "proxy B"
   run_tee "$RESULTS/phase2_neural.txt" python3 "$B/loadgen_phase2.py" --section neural --proxy "http://127.0.0.1:$PROXY_B" \
-    --embedder "http://127.0.0.1:$EMBEDDER" --out "$RESULTS/phase2_neural.json"
+    --embedder "http://127.0.0.1:$EMBEDDER" --threshold 0.96 --out "$RESULTS/phase2_neural.json"
   kill "$EMB_PID" 2>/dev/null; wait "$EMB_PID" 2>/dev/null
   run_tee "$RESULTS/phase2_degraded.txt" python3 "$B/loadgen_phase2.py" --section degraded --proxy "http://127.0.0.1:$PROXY_B" \
     --out "$RESULTS/phase2_degraded.json"

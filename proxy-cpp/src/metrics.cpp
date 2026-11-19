@@ -135,6 +135,9 @@ std::string Metrics::render(const CacheStats& cache, std::string_view node_id, s
           load(semantic_stale));
   counter(out, "vanguard_semantic_skipped_total", "Exact misses that skipped semantic lookup (embedder unavailable).",
           load(semantic_skipped));
+  counter(out, "vanguard_semantic_salient_rejections_total",
+          "Matches above the threshold rejected because a salient token differed.",
+          load(semantic_salient_rejections));
   gauge(out, "vanguard_semantic_entries", "Vectors in the semantic index.", static_cast<double>(semantic_entries));
 
   counter(out, "vanguard_failovers_total", "Requests routed to the fallback upstream.", load(failovers));

@@ -24,6 +24,24 @@ struct PromptFeatures {
 
 PromptFeatures analyze_prompt(std::string_view text);
 
+// Salient-token guard (second line of defence after the cosine threshold).
+//
+// Dense embeddings rate "reverse a list in Python" vs "... in JavaScript"
+// (0.954) and "center a div" vs "center a div vertically" (0.955) as near
+// identical, but the one word that differs changes the answer. The salient
+// tokens of a prompt are its content tokens minus a list of generic words
+// (question framing, common verbs/adjectives like "way", "best", "simple") and
+// minus numbers/negations, which the guard hash already covers. A semantic
+// match is accepted only if every salient token of each prompt has a
+// counterpart in the other.
+std::vector<std::string> salient_tokens(const std::vector<std::string>& tokens);
+
+// Tokens match if equal, or if they are inflections of each other: the
+// shorter one has >= 5 characters, is a prefix of the longer one, and the
+// longer one has at most 4 more characters ("differ"/"difference",
+// "vertical"/"vertically"). "java" vs "javascript" does not match.
+bool salient_compatible(const std::vector<std::string>& a, const std::vector<std::string>& b);
+
 // In-process lexical encoder: signed feature hashing of unigrams (log tf),
 // adjacent bigrams and per-token character trigrams into a fixed-size,
 // L2-normalized vector. ~10-30 us per prompt and no model files.
@@ -32,7 +50,7 @@ PromptFeatures analyze_prompt(std::string_view text);
 // punctuation, whitespace, filler words, question framing and inflection.
 // What it is not: a semantic model. Paraphrases that share few words
 // ("Explain quantum computing" vs "How do qubits work?") score low. Use the
-// neural sidecar (EMBEDDER=remote) for that.
+// neural sidecar (SEMANTIC_MODE=neural) for that.
 class LexicalEmbedder {
  public:
   explicit LexicalEmbedder(std::size_t dim = 512) : dim_(dim == 0 ? 1 : dim) {}

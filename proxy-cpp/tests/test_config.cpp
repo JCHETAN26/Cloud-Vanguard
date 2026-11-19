@@ -45,7 +45,7 @@ TEST(Config, Phase2Defaults) {
   EXPECT_EQ(cfg->ring_vnodes, 1000u);
   EXPECT_EQ(cfg->upstream_ttfb_timeout_ms, 300u);
   EXPECT_DOUBLE_EQ(cfg->semantic_threshold, 0.94);
-  EXPECT_EQ(cfg->embedder, "lexical");
+  EXPECT_EQ(cfg->semantic_mode, "lexical");
   EXPECT_TRUE(cfg->fallback_upstream_url.empty());
 }
 
@@ -53,12 +53,24 @@ TEST(Config, RejectsBadPhase2Input) {
   std::string err;
   const char* threshold[] = {"p", "--semantic-threshold=1.5"};
   EXPECT_FALSE(load_config(2, threshold, err));
-  const char* embedder[] = {"p", "--embedder=gpu"};
-  EXPECT_FALSE(load_config(2, embedder, err));
+  const char* mode[] = {"p", "--semantic-mode=gpu"};
+  EXPECT_FALSE(load_config(2, mode, err));
   const char* fallback[] = {"p", "--fallback-upstream-url=https://api.example.com"};
   EXPECT_FALSE(load_config(2, fallback, err));
   const char* backoff[] = {"p", "--breaker-open-ms=5000", "--breaker-max-open-ms=1000"};
   EXPECT_FALSE(load_config(3, backoff, err));
+}
+
+TEST(Config, NeuralModeDefaultsToStricterThreshold) {
+  std::string err;
+  const char* neural[] = {"p", "--semantic-mode=neural"};
+  auto cfg = load_config(2, neural, err);
+  ASSERT_TRUE(cfg) << err;
+  EXPECT_DOUBLE_EQ(cfg->semantic_threshold, 0.96);
+  const char* explicit_threshold[] = {"p", "--semantic-mode=neural", "--semantic-threshold=0.98"};
+  cfg = load_config(3, explicit_threshold, err);
+  ASSERT_TRUE(cfg) << err;
+  EXPECT_DOUBLE_EQ(cfg->semantic_threshold, 0.98);
 }
 
 TEST(Config, RejectsBadInput) {

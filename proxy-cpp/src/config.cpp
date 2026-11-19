@@ -112,16 +112,19 @@ const std::vector<Option>& options() {
        uint_setter(&Config::breaker_open_ms, 1, 3600000), uint_getter(&Config::breaker_open_ms)},
       {"BREAKER_MAX_OPEN_MS", "cap for the exponential backoff",
        uint_setter(&Config::breaker_max_open_ms, 1, 86400000), uint_getter(&Config::breaker_max_open_ms)},
-      {"EMBEDDER", "semantic cache encoder: lexical | remote | off", string_setter(&Config::embedder),
-       string_getter(&Config::embedder)},
-      {"EMBEDDER_URL", "OpenAI-compatible /v1/embeddings sidecar (EMBEDDER=remote)",
+      {"SEMANTIC_MODE", "semantic cache encoder: lexical | neural | off", string_setter(&Config::semantic_mode),
+       string_getter(&Config::semantic_mode)},
+      {"EMBEDDER_URL", "OpenAI-compatible /v1/embeddings sidecar (SEMANTIC_MODE=neural)",
        string_setter(&Config::embedder_url), string_getter(&Config::embedder_url)},
       {"EMBEDDER_MODEL", "model name sent to the embedding sidecar", string_setter(&Config::embedder_model),
        string_getter(&Config::embedder_model)},
       {"EMBEDDER_TIMEOUT_MS", "max wait for an embedding before skipping semantic lookup",
        uint_setter(&Config::embedder_timeout_ms, 1, 60000), uint_getter(&Config::embedder_timeout_ms)},
-      {"SEMANTIC_THRESHOLD", "min cosine similarity for a semantic hit (0-1]",
-       double_setter(&Config::semantic_threshold), double_getter(&Config::semantic_threshold)},
+      {"SEMANTIC_THRESHOLD", "min cosine similarity for a semantic hit (default 0.94 lexical, 0.96 neural)",
+       double_setter(&Config::semantic_threshold),
+       [](const Config& c) {
+         return c.semantic_threshold <= 0 ? std::string("auto") : double_getter(&Config::semantic_threshold)(c);
+       }},
       {"SEMANTIC_MAX_CHARS", "longer final user messages skip semantic matching",
        uint_setter(&Config::semantic_max_chars, 1, 1u << 24), uint_getter(&Config::semantic_max_chars)},
       {"SEMANTIC_MAX_ENTRIES", "vectors kept in the semantic index",
@@ -221,6 +224,12 @@ std::optional<Config> load_config(int argc, const char* const* argv, std::string
   Config cfg;
   const auto& opts = options();
 
+  // Deprecated alias: EMBEDDER=lexical|remote|off (SEMANTIC_MODE wins if both are set).
+  if (const char* legacy = std::getenv("EMBEDDER"); legacy != nullptr && std::getenv("SEMANTIC_MODE") == nullptr) {
+    const std::string_view v = legacy;
+    cfg.semantic_mode = v == "remote" ? "neural" : std::string(v);
+  }
+
   for (const auto& opt : opts) {
     if (const char* v = std::getenv(opt.env); v != nullptr) {
       std::string err;
@@ -276,15 +285,18 @@ std::optional<Config> load_config(int argc, const char* const* argv, std::string
     error = "FALLBACK_UPSTREAM_URL: " + err;
     return std::nullopt;
   }
-  if (cfg.embedder != "lexical" && cfg.embedder != "remote" && cfg.embedder != "off") {
-    error = "EMBEDDER must be one of: lexical, remote, off";
+  if (cfg.semantic_mode != "lexical" && cfg.semantic_mode != "neural" && cfg.semantic_mode != "off") {
+    error = "SEMANTIC_MODE must be one of: lexical, neural, off";
     return std::nullopt;
   }
-  if (cfg.embedder == "remote" && !parse_upstream_url(cfg.embedder_url, err)) {
+  if (cfg.semantic_mode == "neural" && !parse_upstream_url(cfg.embedder_url, err)) {
     error = "EMBEDDER_URL: " + err;
     return std::nullopt;
   }
-  if (cfg.semantic_threshold <= 0 || cfg.semantic_threshold > 1) {
+  if (cfg.semantic_threshold <= 0) {
+    cfg.semantic_threshold = cfg.semantic_mode == "neural" ? kNeuralDefaultThreshold : kLexicalDefaultThreshold;
+  }
+  if (cfg.semantic_threshold > 1) {
     error = "SEMANTIC_THRESHOLD must be in (0, 1]";
     return std::nullopt;
   }

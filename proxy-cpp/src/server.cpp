@@ -128,7 +128,8 @@ struct InFlight {
   bool semantic = false;  // eligible for semantic lookup + insert
   std::string scope;
   std::uint64_t guard = 0;
-  std::string semantic_text;  // for the remote embedder
+  std::vector<std::string> salient;  // salient-token guard
+  std::string semantic_text;         // for the remote embedder
   std::vector<float> embedding;
   Clock::time_point embed_start{};
 
@@ -199,8 +200,8 @@ class Worker {
   Worker(SharedState& s, int index) : s_(s), index_(index) {
     limits_.max_header_bytes = 16 * 1024;
     limits_.max_body_bytes = s.cfg.max_body_kb * 1024;
-    mode_ = s.cfg.embedder == "off"      ? SemanticMode::kOff
-            : s.cfg.embedder == "remote" ? SemanticMode::kRemote
+    mode_ = s.cfg.semantic_mode == "off"      ? SemanticMode::kOff
+            : s.cfg.semantic_mode == "neural" ? SemanticMode::kRemote
                                          : SemanticMode::kLexical;
   }
   ~Worker() {
@@ -775,6 +776,7 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
         r->semantic = true;
         r->scope = semantic_scope(tenant->id, *chat);
         r->guard = features.guard;
+        r->salient = salient_tokens(features.tokens);
         if (mode_ == SemanticMode::kLexical) {
           r->embedding = s_.lexical.embed_tokens(features.tokens);
           r->semantic = !r->embedding.empty();
@@ -850,8 +852,10 @@ void Worker::finish_exchange(ClientConn* c) {
 bool Worker::try_semantic_hit(ClientConn* c) {
   InFlight& r = *c->req;
   inc(s_.metrics.semantic_lookups);
-  const auto match =
-      s_.semantic.lookup(r.scope, r.guard, r.embedding, static_cast<float>(s_.cfg.semantic_threshold));
+  std::size_t salient_rejections = 0;
+  const auto match = s_.semantic.lookup(r.scope, r.guard, r.embedding, static_cast<float>(s_.cfg.semantic_threshold),
+                                        &r.salient, &salient_rejections);
+  if (salient_rejections > 0) inc(s_.metrics.semantic_salient_rejections, salient_rejections);
   if (!match) return false;
   auto hit = s_.cache.get(match->cache_key);
   if (!hit) {
@@ -1154,7 +1158,7 @@ void Worker::complete_llm(UpstreamConn* u, ClientConn* c) {
   }
   inc(filled ? s_.metrics.cache_fills : s_.metrics.cache_fill_skipped);
   if (filled && r.semantic && !r.embedding.empty()) {
-    s_.semantic.insert(r.scope, r.guard, std::move(r.embedding), r.key);
+    s_.semantic.insert(r.scope, r.guard, std::move(r.embedding), r.key, std::move(r.salient));
     inc(s_.metrics.semantic_inserts);
   }
 
@@ -1475,7 +1479,13 @@ int run_server(SharedState& state) {
                "vanguard-proxy listening on %s:%u with %u epoll workers -> primary %s%s%s, semantic=%s (threshold %.2f)\n",
                state.cfg.listen_addr.c_str(), state.cfg.listen_port, n, state.cfg.upstream_url.c_str(),
                fb.configured ? ", fallback " : "", fb.configured ? state.cfg.fallback_upstream_url.c_str() : "",
-               state.cfg.embedder.c_str(), state.cfg.semantic_threshold);
+               state.cfg.semantic_mode.c_str(), state.cfg.semantic_threshold);
+  if (state.cfg.semantic_mode == "neural" && state.cfg.semantic_threshold < kNeuralDefaultThreshold) {
+    std::fprintf(stderr,
+                 "vanguard-proxy: WARNING: SEMANTIC_THRESHOLD %.2f < %.2f in neural mode; calibration showed "
+                 "different questions above 0.95 with bge-small\n",
+                 state.cfg.semantic_threshold, kNeuralDefaultThreshold);
+  }
 
   std::vector<std::thread> threads;
   threads.reserve(n);

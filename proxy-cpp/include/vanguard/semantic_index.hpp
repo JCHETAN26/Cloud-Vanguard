@@ -42,10 +42,16 @@ class SemanticIndex {
   SemanticIndex() : SemanticIndex(Options{}) {}
   explicit SemanticIndex(Options options);
 
-  // Best entry in `scope` with an equal guard and similarity >= threshold.
+  // Best entry in `scope` with an equal guard, similarity >= threshold and,
+  // when `salient` is given, salient tokens compatible with the query's (see
+  // salient_compatible). `salient_rejections` (optional) counts entries that
+  // cleared the threshold but failed the salient-token guard.
   std::optional<SemanticMatch> lookup(std::string_view scope, std::uint64_t guard,
-                                      const std::vector<float>& query, float threshold);
-  void insert(std::string_view scope, std::uint64_t guard, std::vector<float> vec, std::string cache_key);
+                                      const std::vector<float>& query, float threshold,
+                                      const std::vector<std::string>* salient = nullptr,
+                                      std::size_t* salient_rejections = nullptr);
+  void insert(std::string_view scope, std::uint64_t guard, std::vector<float> vec, std::string cache_key,
+              std::vector<std::string> salient = {});
   bool erase(std::string_view scope, std::string_view cache_key);
 
   [[nodiscard]] std::size_t size() const;
@@ -56,6 +62,7 @@ class SemanticIndex {
     std::string cache_key;
     std::uint64_t guard = 0;
     std::vector<float> vec;
+    std::vector<std::string> salient;
   };
   struct Scope {
     std::string key;

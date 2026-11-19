@@ -35,11 +35,18 @@ struct Config {
   unsigned breaker_max_open_ms = 30000;  // exponential backoff cap
 
   // Semantic cache.
-  std::string embedder = "lexical";  // lexical | remote | off
+  //   lexical  in-process near-duplicate encoder (default)
+  //   neural   async OpenAI-compatible /v1/embeddings sidecar (EMBEDDER_URL)
+  //   off      exact-match caching only
+  // EMBEDDER=lexical|remote|off is accepted as a deprecated alias.
+  std::string semantic_mode = "lexical";
   std::string embedder_url = "http://127.0.0.1:9200";
   std::string embedder_model = "BAAI/bge-small-en-v1.5";
   unsigned embedder_timeout_ms = 150;
-  double semantic_threshold = 0.94;
+  // 0 = per-mode default: 0.94 lexical, 0.96 neural. Calibration with
+  // bge-small showed different questions scoring up to 0.955 (e.g. "reverse a
+  // list in Python" vs "... in JavaScript"), so neural needs >= 0.96.
+  double semantic_threshold = 0;
   std::size_t semantic_max_chars = 2000;
   std::size_t semantic_max_entries = 100000;
   std::size_t semantic_max_per_scope = 4096;  // brute-force scan bound (~1 ms at 512 dims)
@@ -68,6 +75,9 @@ struct UpstreamUrl {
   std::uint16_t port = 80;
   std::string base_path;  // no trailing slash; prepended to the request path
 };
+
+inline constexpr double kLexicalDefaultThreshold = 0.94;
+inline constexpr double kNeuralDefaultThreshold = 0.96;
 
 std::optional<UpstreamUrl> parse_upstream_url(std::string_view url, std::string& error);
 

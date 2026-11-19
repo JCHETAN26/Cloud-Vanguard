@@ -63,8 +63,9 @@ Set each option as an environment variable or as the matching flag
 
 Phase 2: `FALLBACK_UPSTREAM_URL`, `FALLBACK_UPSTREAM_API_KEY`, `FALLBACK_MODEL`,
 `UPSTREAM_TTFB_TIMEOUT_MS` (300), `FALLBACK_TTFB_TIMEOUT_MS` (10000), `BREAKER_FAILURE_THRESHOLD` (5),
-`BREAKER_OPEN_MS` (1000), `BREAKER_MAX_OPEN_MS` (30000), `EMBEDDER` (`lexical`|`remote`|`off`),
-`EMBEDDER_URL`, `EMBEDDER_MODEL`, `EMBEDDER_TIMEOUT_MS` (150), `SEMANTIC_THRESHOLD` (0.94),
+`BREAKER_OPEN_MS` (1000), `BREAKER_MAX_OPEN_MS` (30000), `SEMANTIC_MODE` (`lexical`|`neural`|`off`;
+`EMBEDDER=remote` still accepted), `EMBEDDER_URL`, `EMBEDDER_MODEL`, `EMBEDDER_TIMEOUT_MS` (150),
+`SEMANTIC_THRESHOLD` (default 0.94 lexical, **0.96 neural**),
 `SEMANTIC_MAX_CHARS` (2000), `SEMANTIC_MAX_ENTRIES` (100000), `SEMANTIC_MAX_PER_SCOPE` (4096).
 
 Example tenants file: [`../benchmarks/tenants.bench.json`](../benchmarks/tenants.bench.json).
@@ -99,9 +100,17 @@ Without one, any bearer token is accepted as its own tenant (`anon-<sha256 prefi
   system prompt, earlier turns and generation params form an exact *scope*. A guard
   additionally requires identical numbers and negation count, so "2+2" never matches
   "2+3" and "is X safe" never matches "is X not safe".
+* **Salient-token guard.** Calibrating bge-small showed different questions scoring above
+  0.95 ("reverse a list in Python" vs "… in JavaScript" 0.954; "center a div" vs "… vertically"
+  0.955), overlapping real paraphrases (0.875–0.985). So neural mode defaults to 0.96, and every
+  match above the threshold must also pass a lexical check: each prompt's salient tokens
+  (content words minus a small generic/framing vocabulary, numbers and negations) must have a
+  counterpart in the other, with inflections allowed ("differ"/"difference") but not
+  "java"/"javascript". This trades recall for safety: 3 of 12 hand-written paraphrases hit,
+  with 0 false positives.
 * **Two encoders.** The lexical one (default, ~20 µs, no dependencies) catches rewording
   such as casing, filler, framing and inflection, but not true paraphrase. The remote one
-  calls any OpenAI-compatible `/v1/embeddings` service asynchronously on the event loop
+  (`SEMANTIC_MODE=neural`) calls any OpenAI-compatible `/v1/embeddings` service asynchronously on the event loop
   (e.g. `benchmarks/embedder_sidecar.py`, bge-small). It has its own breaker and timeout;
   if the sidecar is slow or down, requests degrade to exact-match-only and are still served.
 * **Exact brute-force scan per scope.** The scan is exact, with no approximate-index recall

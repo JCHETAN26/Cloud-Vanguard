@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     targets[kFallbackTarget] = std::move(*fallback);
   }
   targets[kEmbedderTarget].name = "embedder";
-  if (cfg->embedder == "remote") {
+  if (cfg->semantic_mode == "neural") {
     auto embedder = resolve_target("embedder", cfg->embedder_url, "", cfg->embedder_timeout_ms, breaker, err);
     if (!embedder) {
       std::fprintf(stderr, "vanguard-proxy: %s\n", err.c_str());

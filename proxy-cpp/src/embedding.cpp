@@ -59,11 +59,83 @@ std::string stem(std::string t) {
   return t;
 }
 
+// Generic vocabulary: words that carry little of *what* is being asked and
+// commonly vary between paraphrases. Kept deliberately small; anything not
+// listed (python, javascript, vertically, capital, population, ...) is salient.
+const std::unordered_set<std::string>& generic_words();
+
 bool has_digit(std::string_view s) {
   return std::any_of(s.begin(), s.end(), [](char c) { return c >= '0' && c <= '9'; });
 }
 
+const std::unordered_set<std::string>& generic_words() {
+  static const std::unordered_set<std::string> kWords = [] {
+    static constexpr std::string_view kList[] = {
+        // question framing / interrogatives
+        "how", "why", "when", "where", "which", "who", "whom", "whose", "way", "ways", "method", "methods",
+        "approach", "possible", "question", "answer", "mean", "meaning", "between",
+        "versus", "vs", "compare", "comparison", "summarize", "summary", "overview", "list", "outline",
+        // instructions and politeness
+        "write", "make", "create", "generate", "provide", "share", "say", "ask", "find", "get", "go", "let",
+        "try", "see", "look", "think", "learn", "teach", "work", "works", "use", "using", "used", "take", "put",
+        "keep", "set", "turn", "start", "stop", "come", "become", "call", "called", "mean", "means", "seem",
+        "happen", "happens", "cause", "causes", "reason", "reasons", "main", "key", "important", "basic",
+        "basics", "simple", "simply", "easy", "easily", "short", "brief", "briefly", "detail", "detailed",
+        "quick", "quickly", "plain", "term", "terms", "word", "words", "language", "english", "sentence",
+        "sentences", "paragraph", "example", "examples", "step", "steps", "guide", "tip", "tips", "idea", "ideas",
+        // generic nouns
+        "thing", "things", "stuff", "something", "anything", "everything", "kind", "type", "types", "sort", "part",
+        "parts", "lot", "lots", "number", "amount", "people", "person", "someone", "everyone", "time", "times",
+        "day", "days", "year", "years", "place", "case", "cases", "fact", "facts", "point", "points", "problem",
+        "problems", "issue", "issues", "option", "options", "process", "result", "results", "effect", "effects",
+        "benefit", "benefits", "advantage", "advantages", "good", "bad", "better", "best", "worse", "worst",
+        "great", "nice", "new", "old", "big", "small", "large", "high", "low", "long", "first", "last", "next",
+        "same", "other", "another", "each", "every", "all", "most", "more", "less", "many", "much", "few",
+        "own", "only", "even", "still", "already", "again", "ever", "often", "usually", "always", "sometimes",
+        "now", "today", "currently", "actually", "exactly", "really", "maybe", "perhaps", "generally",
+        "general", "common", "commonly", "typical", "typically", "right", "correct", "proper", "properly",
+        "work", "improve", "improving", "increase", "reduce", "help", "helps", "able", "need", "needs",
+        "should", "ought", "possible", "possibly", "likely", "true", "false", "yes", "okay", "ok", "sure",
+        "not", "then", "than", "if", "but", "because", "while", "after", "before", "during", "through", "over",
+        "under", "up", "down", "out", "off", "via", "per", "within", "without", "across", "against", "around",
+        "whats", "hows", "whys", "s", "t"};
+    std::unordered_set<std::string> set;
+    for (const auto w : kList) set.insert(stem(std::string(w)));
+    return set;
+  }();
+  return kWords;
+}
+
+bool inflection_match(const std::string& a, const std::string& b) {
+  if (a == b) return true;
+  const std::string& shorter = a.size() <= b.size() ? a : b;
+  const std::string& longer = a.size() <= b.size() ? b : a;
+  return shorter.size() >= 5 && longer.size() - shorter.size() <= 4 &&
+         std::string_view(longer).substr(0, shorter.size()) == shorter;
+}
+
+bool covered(const std::vector<std::string>& from, const std::vector<std::string>& in) {
+  return std::all_of(from.begin(), from.end(), [&](const std::string& t) {
+    return std::any_of(in.begin(), in.end(), [&](const std::string& u) { return inflection_match(t, u); });
+  });
+}
+
 }  // namespace
+
+std::vector<std::string> salient_tokens(const std::vector<std::string>& tokens) {
+  std::vector<std::string> out;
+  for (const auto& t : tokens) {
+    if (has_digit(t) || generic_words().count(t) != 0) continue;
+    out.push_back(t);
+  }
+  std::sort(out.begin(), out.end());
+  out.erase(std::unique(out.begin(), out.end()), out.end());
+  return out;
+}
+
+bool salient_compatible(const std::vector<std::string>& a, const std::vector<std::string>& b) {
+  return covered(a, b) && covered(b, a);
+}
 
 PromptFeatures analyze_prompt(std::string_view text) {
   std::vector<std::string> raw;

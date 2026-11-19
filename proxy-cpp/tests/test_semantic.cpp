@@ -234,3 +234,48 @@ TEST(Embeddings, ParsesOpenAiResponseAndRequest) {
   EXPECT_EQ(vanguard::make_embedding_request("bge", "hi \"there\""), R"({"input":"hi \"there\"","model":"bge"})");
   EXPECT_EQ(vanguard::rewrite_model(R"({"model":"llama","messages":[]})", "gpt-x"), R"({"messages":[],"model":"gpt-x"})");
 }
+
+// ---------------------------------------------------------------------------
+// Salient-token guard: the exact failures bge-small produced at 0.94
+// ---------------------------------------------------------------------------
+
+namespace {
+bool salient_ok(const char* a, const char* b) {
+  return vanguard::salient_compatible(vanguard::salient_tokens(analyze_prompt(a).tokens),
+                                      vanguard::salient_tokens(analyze_prompt(b).tokens));
+}
+}  // namespace
+
+TEST(SalientGuard, RejectsTheNeuralFalsePositives) {
+  // Both scored >= 0.954 with BAAI/bge-small-en-v1.5.
+  EXPECT_FALSE(salient_ok("How do I reverse a list in Python?", "How do I reverse a list in JavaScript?"));
+  EXPECT_FALSE(salient_ok("How do I center a div in CSS?", "How do I center a div vertically in CSS?"));
+  // Other entity / qualifier swaps.
+  EXPECT_FALSE(salient_ok("Translate 'thank you' to Spanish", "Translate 'thank you' to Japanese"));
+  EXPECT_FALSE(salient_ok("What are the health benefits of green tea?", "What are the health risks of green tea?"));
+  EXPECT_FALSE(salient_ok("Explain Java generics", "Explain JavaScript generics"));
+  EXPECT_FALSE(salient_ok("What is the capital of Australia?", "What is the population of Australia?"));
+}
+
+TEST(SalientGuard, AcceptsTheNeuralTruePositives) {
+  // The paraphrases bge-small scored >= 0.96: the guard must not block them.
+  EXPECT_TRUE(salient_ok("How do I reverse a list in Python?", "What's the way to reverse a Python list?"));
+  EXPECT_TRUE(salient_ok("What is the difference between TCP and UDP?", "How does TCP differ from UDP?"));
+  EXPECT_TRUE(salient_ok("How do I center a div in CSS?", "What's the CSS to center a div?"));
+  // Framing / inflection variations.
+  EXPECT_TRUE(salient_ok("Explain quantum computing", "What is quantum computing in simple terms?"));
+  EXPECT_TRUE(salient_ok("Center it vertical", "center it vertically"));
+}
+
+TEST(SalientGuard, IndexAppliesItAfterTheThreshold) {
+  SemanticIndex idx;
+  const auto stored = vanguard::salient_tokens(analyze_prompt("How do I reverse a list in Python?").tokens);
+  const auto query = vanguard::salient_tokens(analyze_prompt("How do I reverse a list in JavaScript?").tokens);
+  idx.insert("s", 0, unit({1, 0}), "python-answer", stored);
+  std::size_t rejected = 0;
+  // Identical vectors (similarity 1.0) are still refused when a salient token differs.
+  EXPECT_FALSE(idx.lookup("s", 0, unit({1, 0}), 0.96f, &query, &rejected).has_value());
+  EXPECT_EQ(rejected, 1u);
+  EXPECT_TRUE(idx.lookup("s", 0, unit({1, 0}), 0.96f, &stored, &rejected).has_value());
+  EXPECT_TRUE(idx.lookup("s", 0, unit({1, 0}), 0.96f).has_value());  // guard is opt-in per call
+}

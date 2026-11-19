@@ -20,7 +20,9 @@ SemanticIndex::Shard& SemanticIndex::shard_for(std::string_view scope) {
 }
 
 std::optional<SemanticMatch> SemanticIndex::lookup(std::string_view scope, std::uint64_t guard,
-                                                   const std::vector<float>& query, float threshold) {
+                                                   const std::vector<float>& query, float threshold,
+                                                   const std::vector<std::string>* salient,
+                                                   std::size_t* salient_rejections) {
   if (query.empty()) return std::nullopt;
   auto& shard = shard_for(scope);
   std::lock_guard lock(shard.mu);
@@ -33,17 +35,20 @@ std::optional<SemanticMatch> SemanticIndex::lookup(std::string_view scope, std::
   for (const auto& e : it->second->entries) {
     if (e.guard != guard || e.vec.size() != query.size()) continue;
     const float sim = dot(e.vec.data(), query.data(), query.size());
-    if (sim > best_sim) {
-      best_sim = sim;
-      best = &e;
+    if (sim < threshold || sim <= best_sim) continue;
+    if (salient != nullptr && !salient_compatible(*salient, e.salient)) {
+      if (salient_rejections != nullptr) ++*salient_rejections;
+      continue;
     }
+    best_sim = sim;
+    best = &e;
   }
-  if (best == nullptr || best_sim < threshold) return std::nullopt;
+  if (best == nullptr) return std::nullopt;
   return SemanticMatch{best->cache_key, best_sim};
 }
 
 void SemanticIndex::insert(std::string_view scope, std::uint64_t guard, std::vector<float> vec,
-                           std::string cache_key) {
+                           std::string cache_key, std::vector<std::string> salient) {
   if (vec.empty()) return;
   auto& shard = shard_for(scope);
   std::lock_guard lock(shard.mu);
@@ -56,7 +61,7 @@ void SemanticIndex::insert(std::string_view scope, std::uint64_t guard, std::vec
   }
   Scope& s = *it->second;
 
-  Entry entry{std::move(cache_key), guard, std::move(vec)};
+  Entry entry{std::move(cache_key), guard, std::move(vec), std::move(salient)};
   const auto same = std::find_if(s.entries.begin(), s.entries.end(),
                                  [&](const Entry& e) { return e.cache_key == entry.cache_key; });
   if (same != s.entries.end()) {
