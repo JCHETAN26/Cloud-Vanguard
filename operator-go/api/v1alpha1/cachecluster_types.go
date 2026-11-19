@@ -43,10 +43,34 @@ type CacheClusterSpec struct {
 	// +optional
 	DefaultTTLSeconds int32 `json:"defaultTtlSeconds,omitempty"`
 
+	// Warm-cache persistence: each pod gets a raw block volume (CSI,
+	// volumeMode Block) that vanguard-proxy snapshots its cache to, so a
+	// restarted or rescheduled pod resumes with a warm cache.
+	// +optional
+	Persistence *PersistenceSpec `json:"persistence,omitempty"`
+
 	// Container image for vanguard-proxy.
 	// +kubebuilder:default="ghcr.io/jchetan26/vanguard-proxy:0.3.0"
 	// +optional
 	Image string `json:"image,omitempty"`
+}
+
+// PersistenceSpec configures per-pod warm-cache volumes.
+type PersistenceSpec struct {
+	// StorageClass provisioning the volumes, e.g. one backed by csi.cloudvanguard.io.
+	// +optional
+	StorageClassName *string `json:"storageClassName,omitempty"`
+
+	// Volume size per pod. Each snapshot slot gets just under half of it.
+	// +kubebuilder:default="1Gi"
+	// +optional
+	Size *resource.Quantity `json:"size,omitempty"`
+
+	// How often pods snapshot their cache (they also snapshot on SIGTERM).
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default=60
+	// +optional
+	SnapshotIntervalSeconds int32 `json:"snapshotIntervalSeconds,omitempty"`
 }
 
 // CacheClusterStatus is the observed state of a CacheCluster.

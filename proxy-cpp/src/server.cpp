@@ -45,6 +45,7 @@
 #include <chrono>
 #include <cmath>
 #include <csignal>
+#include <ctime>
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
@@ -858,6 +859,24 @@ void Worker::handle_admin(ClientConn* c, HttpRequest& req) {
   if (req.path == "/admin/v1/config" && req.method == "GET") {
     respond(c, 200, kJson, s_.control.to_json());
     return;
+  }
+  if (req.path == "/admin/v1/snapshot" || req.path == "/admin/v1/restore") {
+    if (s_.cfg.snapshot_path.empty()) {
+      respond_error(c, 409, "snapshots are disabled (SNAPSHOT_PATH unset)", "invalid_request_error", "snapshots_disabled");
+      return;
+    }
+    if (req.method == "GET" && req.path == "/admin/v1/snapshot") {
+      respond(c, 200, kJson, s_.snapshot_status_json());
+      return;
+    }
+    if (req.method == "POST" || req.method == "PUT") {
+      // Asynchronous: the snapshot thread does the I/O; poll GET for completion.
+      const bool restore = req.path == "/admin/v1/restore";
+      const auto id = restore ? s_.request_snapshot_restore() : s_.request_snapshot_save();
+      nlohmann::json body = {{"accepted", true}, {"operation", restore ? "restore" : "save"}, {"request", id}};
+      respond(c, 202, kJson, body.dump());
+      return;
+    }
   }
   const bool write = req.method == "PUT" || req.method == "POST";
   ApplyOutcome out;
@@ -1850,6 +1869,90 @@ SharedState::SharedState(Config c, ControlPlane::Options control_options, Tenant
       cache(cfg.cache_max_mb * 1024 * 1024, cfg.cache_shards, std::chrono::seconds(cfg.cache_ttl_s)),
       semantic(SemanticIndex::Options{16, cfg.semantic_max_entries, cfg.semantic_max_per_scope}) {}
 
+namespace {
+SnapshotMode snapshot_mode_of(const Config& cfg) {
+  return parse_snapshot_mode(cfg.snapshot_mode).value_or(SnapshotMode::kAuto);
+}
+}  // namespace
+
+std::uint64_t SharedState::request_snapshot_save() {
+  std::uint64_t id = 0;
+  {
+    std::lock_guard lock(snap_mu);
+    id = ++save_requested;
+  }
+  snap_cv.notify_one();
+  return id;
+}
+
+std::uint64_t SharedState::request_snapshot_restore() {
+  std::uint64_t id = 0;
+  {
+    std::lock_guard lock(snap_mu);
+    id = ++restore_requested;
+  }
+  snap_cv.notify_one();
+  return id;
+}
+
+SnapshotSaveStats SharedState::run_snapshot_save() {
+  auto st = save_snapshot(cache, cfg.snapshot_path, snapshot_mode_of(cfg));
+  if (st.ok) {
+    inc(metrics.snapshot_saves);
+    metrics.snapshot_last_entries.store(st.entries, std::memory_order_relaxed);
+    metrics.snapshot_last_bytes.store(st.bytes, std::memory_order_relaxed);
+  } else {
+    inc(metrics.snapshot_failures);
+  }
+  std::fprintf(stderr, "[snapshot] save %s: %llu entries, %llu bytes, %s mode%s, %.1f ms%s%s\n", st.ok ? "ok" : "FAILED",
+               static_cast<unsigned long long>(st.entries), static_cast<unsigned long long>(st.bytes), st.mode.c_str(),
+               st.slot >= 0 ? (st.slot == 0 ? " slot A" : " slot B") : "", st.duration_ms,
+               st.error.empty() ? "" : ": ", st.error.c_str());
+  std::lock_guard lock(snap_mu);
+  last_save = st;
+  last_save_unix = static_cast<std::int64_t>(std::time(nullptr));
+  return st;
+}
+
+SnapshotLoadStats SharedState::run_snapshot_restore() {
+  auto st = load_snapshot(cache, cfg.snapshot_path, snapshot_mode_of(cfg));
+  if (st.ok) {
+    inc(metrics.snapshot_restores);
+    inc(metrics.snapshot_restored_entries, st.loaded);
+  } else {
+    inc(metrics.snapshot_failures);
+  }
+  std::fprintf(stderr, "[snapshot] restore %s: %llu entries (%llu expired)%s, %s mode, %.1f ms%s%s\n",
+               st.ok ? "ok" : "skipped", static_cast<unsigned long long>(st.loaded),
+               static_cast<unsigned long long>(st.expired), st.truncated ? " [truncated]" : "", st.mode.c_str(),
+               st.duration_ms, st.error.empty() ? "" : ": ", st.error.c_str());
+  std::lock_guard lock(snap_mu);
+  last_restore = st;
+  last_restore_unix = static_cast<std::int64_t>(std::time(nullptr));
+  return st;
+}
+
+std::string SharedState::snapshot_status_json() const {
+  std::lock_guard lock(snap_mu);
+  nlohmann::json j;
+  j["path"] = cfg.snapshot_path;
+  j["enabled"] = !cfg.snapshot_path.empty();
+  j["intervalSeconds"] = cfg.snapshot_interval_s;
+  j["saveRequested"] = save_requested;
+  j["saveCompleted"] = save_completed;
+  j["restoreRequested"] = restore_requested;
+  j["restoreCompleted"] = restore_completed;
+  j["lastSave"] = {{"ok", last_save.ok},           {"entries", last_save.entries},   {"bytes", last_save.bytes},
+                   {"mode", last_save.mode},       {"slot", last_save.slot},         {"generation", last_save.generation},
+                   {"durationMs", last_save.duration_ms}, {"error", last_save.error}, {"unix", last_save_unix}};
+  j["lastRestore"] = {{"ok", last_restore.ok},         {"loaded", last_restore.loaded},
+                      {"expired", last_restore.expired}, {"truncated", last_restore.truncated},
+                      {"mode", last_restore.mode},     {"slot", last_restore.slot},
+                      {"generation", last_restore.generation}, {"durationMs", last_restore.duration_ms},
+                      {"error", last_restore.error},   {"unix", last_restore_unix}};
+  return j.dump();
+}
+
 void SharedState::wake_control() {
   {
     std::lock_guard lock(wake_mu);
@@ -1916,6 +2019,40 @@ void load_control_file(SharedState& s, ControlFileState& st, bool force) {
                static_cast<long long>(out.version));
 }
 
+// Snapshot thread: periodic saves plus queued admin save/restore requests.
+// Disk I/O never runs on an event loop.
+void snapshot_loop(SharedState& s) {
+  auto next_periodic = Clock::now() + std::chrono::seconds(s.cfg.snapshot_interval_s);
+  while (!g_stop.load(std::memory_order_relaxed)) {
+    bool save = false, restore = false;
+    std::uint64_t save_id = 0, restore_id = 0;
+    {
+      std::unique_lock lock(s.snap_mu);
+      s.snap_cv.wait_for(lock, std::chrono::milliseconds(500), [&] {
+        return s.save_requested > s.save_completed || s.restore_requested > s.restore_completed ||
+               g_stop.load(std::memory_order_relaxed);
+      });
+      restore = s.restore_requested > s.restore_completed;
+      restore_id = s.restore_requested;
+      save = s.save_requested > s.save_completed;
+      save_id = s.save_requested;
+    }
+    if (g_stop.load(std::memory_order_relaxed)) break;
+    if (restore) {
+      s.run_snapshot_restore();
+      std::lock_guard lock(s.snap_mu);
+      s.restore_completed = restore_id;
+    }
+    const bool periodic = s.cfg.snapshot_interval_s > 0 && Clock::now() >= next_periodic;
+    if (save || periodic) {
+      s.run_snapshot_save();
+      next_periodic = Clock::now() + std::chrono::seconds(s.cfg.snapshot_interval_s);
+      std::lock_guard lock(s.snap_mu);
+      if (save) s.save_completed = save_id;
+    }
+  }
+}
+
 // Control thread: CONTROL_FILE polling, SIGHUP reloads, peer DNS resolution.
 void control_loop(SharedState& s, ControlFileState file_state) {
   auto last_refresh = Clock::now();
@@ -1963,6 +2100,12 @@ int run_server(SharedState& state) {
   ::sigaction(SIGHUP, &hup, nullptr);
   ::signal(SIGPIPE, SIG_IGN);
 
+  // Warm start: restore the cache before accepting traffic, so the first
+  // requests after a restart / volume re-attach are already hits.
+  if (!state.cfg.snapshot_path.empty() && state.cfg.snapshot_restore_on_start != 0) {
+    state.run_snapshot_restore();
+  }
+
   // Converge on the control document and peer addresses before serving.
   ControlFileState file_state;
   if (!state.cfg.control_file.empty()) load_control_file(state, file_state, true);
@@ -2007,7 +2150,10 @@ int run_server(SharedState& state) {
   threads.reserve(n + 1);
   for (auto& w : workers) threads.emplace_back([&w] { w->run(); });
   threads.emplace_back([&state, file_state] { control_loop(state, file_state); });
+  if (!state.cfg.snapshot_path.empty()) threads.emplace_back([&state] { snapshot_loop(state); });
   for (auto& t : threads) t.join();
+  // Graceful shutdown (SIGTERM): persist the warm cache for the next start.
+  if (!state.cfg.snapshot_path.empty() && state.cfg.snapshot_on_shutdown != 0) state.run_snapshot_save();
   std::fprintf(stderr, "vanguard-proxy: shutdown complete\n");
   return 0;
 }

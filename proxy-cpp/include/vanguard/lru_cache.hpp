@@ -120,6 +120,17 @@ class LruShard {
     return s;
   }
 
+  // Visits live entries from least- to most-recently used (snapshotting:
+  // re-inserting in this order rebuilds the same recency). `f` runs under the
+  // shard lock and must only copy what it needs.
+  template <typename F>
+  void for_each_lru_to_mru(SteadyClock::time_point now, F&& f) const {
+    std::lock_guard lock(mu_);
+    for (auto it = lru_.rbegin(); it != lru_.rend(); ++it) {
+      if (it->expires > now) f(it->key, it->value, it->expires);
+    }
+  }
+
   // Keys from most- to least-recently used (for tests / debugging).
   std::vector<std::string> keys_mru_order() const {
     std::lock_guard lock(mu_);
@@ -188,6 +199,11 @@ class ShardedLruCache {
   }
 
   bool erase(std::string_view key) { return shard_for(key).erase(key); }
+
+  template <typename F>
+  void for_each_lru_to_mru(SteadyClock::time_point now, F&& f) const {
+    for (const auto& s : shards_) s->for_each_lru_to_mru(now, f);
+  }
 
   [[nodiscard]] std::size_t shard_index(std::string_view key) const noexcept {
     return static_cast<std::size_t>(murmur3_64(key) % shards_.size());

@@ -195,6 +195,15 @@ std::string Metrics::render(const CacheStats& cache, const ControlReport& contro
   line(out, "vanguard_hop_rejections_total", "reason=\"untrusted\"", static_cast<double>(load(hop_rejected_untrusted)));
   counter(out, "vanguard_admin_updates_total", "Control-plane updates applied.", load(admin_updates));
   counter(out, "vanguard_admin_rejected_total", "Control-plane updates rejected (invalid or stale).", load(admin_rejected));
+  counter(out, "vanguard_snapshot_saves_total", "Warm-cache snapshots written.", load(snapshot_saves));
+  counter(out, "vanguard_snapshot_restores_total", "Warm-cache snapshots restored.", load(snapshot_restores));
+  counter(out, "vanguard_snapshot_failures_total", "Snapshot saves/restores that failed.", load(snapshot_failures));
+  gauge(out, "vanguard_snapshot_last_entries", "Entries in the last snapshot written.",
+        static_cast<double>(load(snapshot_last_entries)));
+  gauge(out, "vanguard_snapshot_last_bytes", "Size of the last snapshot written.",
+        static_cast<double>(load(snapshot_last_bytes)));
+  counter(out, "vanguard_snapshot_restored_entries_total", "Cache entries restored from snapshots.",
+          load(snapshot_restored_entries));
   counter(out, "vanguard_semantic_mode_downgrades_total", "Neural semantic requests served lexically (no sidecar).",
           load(semantic_mode_downgrades));
 

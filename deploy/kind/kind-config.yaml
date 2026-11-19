@@ -1,0 +1,11 @@
+# Single-host kind cluster: the CSI controller's image directory is a hostPath
+# shared with the node plugin (--attacher=local).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: cloudvanguard
+nodes:
+  - role: control-plane
+  - role: worker
+    extraMounts:
+      - hostPath: /var/lib/cloudvanguard-csi
+        containerPath: /var/lib/cloudvanguard-csi

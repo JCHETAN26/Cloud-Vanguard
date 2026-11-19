@@ -76,6 +76,13 @@ struct Config {
   unsigned peer_connect_timeout_ms = 250;
   unsigned peer_timeout_ms = 60000;      // max wait for the owner's response headers
 
+  // Warm-cache persistence (Phase 4).
+  std::string snapshot_path;          // file (filesystem volume) or raw block device; empty = off
+  std::string snapshot_mode = "auto"; // auto (block if a block device) | file | block
+  unsigned snapshot_interval_s = 300; // periodic save (0 = only on demand / shutdown)
+  unsigned snapshot_on_shutdown = 1;
+  unsigned snapshot_restore_on_start = 1;
+
   unsigned client_idle_timeout_s = 60;
   std::size_t max_body_kb = 4096;
 };

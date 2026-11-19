@@ -13,7 +13,13 @@ import (
 	cachev1alpha1 "github.com/JCHETAN26/Cloud-Vanguard/operator-go/api/v1alpha1"
 )
 
-const mib = 1024 * 1024
+const (
+	mib = 1024 * 1024
+	// WarmCacheVolume is the volumeClaimTemplate name; WarmCacheDevicePath is
+	// where the raw block device appears in the container.
+	WarmCacheVolume     = "warm-cache"
+	WarmCacheDevicePath = "/dev/vanguard-cache"
+)
 
 // CacheMiB converts spec.maxCacheBytes to the proxy's CACHE_MAX_MB (rounded up, min 1).
 func CacheMiB(cc *cachev1alpha1.CacheCluster) int64 {
@@ -86,6 +92,35 @@ func MutateStatefulSet(sts *appsv1.StatefulSet, cc *cachev1alpha1.CacheCluster) 
 	if cc.Spec.UpstreamFallback != "" {
 		env = append(env, corev1.EnvVar{Name: "FALLBACK_UPSTREAM_URL", Value: cc.Spec.UpstreamFallback})
 	}
+	var devices []corev1.VolumeDevice
+	if p := cc.Spec.Persistence; p != nil {
+		env = append(env,
+			corev1.EnvVar{Name: "SNAPSHOT_PATH", Value: WarmCacheDevicePath},
+			corev1.EnvVar{Name: "SNAPSHOT_MODE", Value: "block"},
+			corev1.EnvVar{Name: "SNAPSHOT_INTERVAL_S", Value: strconv.Itoa(int(p.SnapshotIntervalSeconds))})
+		devices = []corev1.VolumeDevice{{Name: WarmCacheVolume, DevicePath: WarmCacheDevicePath}}
+		// volumeClaimTemplates are immutable: only set when the StatefulSet is created.
+		if sts.CreationTimestamp.IsZero() {
+			size := resource.MustParse("1Gi")
+			if p.Size != nil {
+				size = *p.Size
+			}
+			sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{{
+				ObjectMeta: metav1.ObjectMeta{Name: WarmCacheVolume, Labels: labels},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+					VolumeMode:       ptr.To(corev1.PersistentVolumeBlock),
+					StorageClassName: p.StorageClassName,
+					Resources:        corev1.VolumeResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceStorage: size}},
+				},
+			}}
+			// Keep warm caches when pods are scaled away or the cluster is deleted.
+			sts.Spec.PersistentVolumeClaimRetentionPolicy = &appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy{
+				WhenDeleted: appsv1.RetainPersistentVolumeClaimRetentionPolicyType,
+				WhenScaled:  appsv1.RetainPersistentVolumeClaimRetentionPolicyType,
+			}
+		}
+	}
 	probe := func(delay int32) *corev1.Probe {
 		return &corev1.Probe{
 			ProbeHandler:        corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{Path: "/healthz", Port: intstr.FromString("http")}},
@@ -110,8 +145,11 @@ func MutateStatefulSet(sts *appsv1.StatefulSet, cc *cachev1alpha1.CacheCluster) 
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("250m"), corev1.ResourceMemory: *memory},
 			},
-			VolumeMounts: []corev1.VolumeMount{{Name: "control", MountPath: ControlMountPath, ReadOnly: true}},
+			VolumeMounts:  []corev1.VolumeMount{{Name: "control", MountPath: ControlMountPath, ReadOnly: true}},
+			VolumeDevices: devices,
 		}},
+		// Room for the SIGTERM snapshot to complete.
+		TerminationGracePeriodSeconds: ptr.To(int64(60)),
 		Volumes: []corev1.Volume{{
 			Name: "control",
 			VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{

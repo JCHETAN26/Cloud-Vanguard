@@ -181,6 +181,16 @@ const std::vector<Option>& options() {
        uint_setter(&Config::peer_connect_timeout_ms, 1, 60000), uint_getter(&Config::peer_connect_timeout_ms)},
       {"PEER_TIMEOUT_MS", "max wait for the owner node's response headers",
        uint_setter(&Config::peer_timeout_ms, 1, 3600000), uint_getter(&Config::peer_timeout_ms)},
+      {"SNAPSHOT_PATH", "warm-cache snapshot location: file, or raw block device (CSI volumeMode Block)",
+       string_setter(&Config::snapshot_path), string_getter(&Config::snapshot_path)},
+      {"SNAPSHOT_MODE", "auto | file | block", string_setter(&Config::snapshot_mode),
+       string_getter(&Config::snapshot_mode)},
+      {"SNAPSHOT_INTERVAL_S", "periodic snapshot interval (0 = on demand / shutdown only)",
+       uint_setter(&Config::snapshot_interval_s, 0, 86400), uint_getter(&Config::snapshot_interval_s)},
+      {"SNAPSHOT_ON_SHUTDOWN", "save a snapshot on SIGTERM (0/1)", uint_setter(&Config::snapshot_on_shutdown, 0, 1),
+       uint_getter(&Config::snapshot_on_shutdown)},
+      {"SNAPSHOT_RESTORE_ON_START", "restore the snapshot before serving (0/1)",
+       uint_setter(&Config::snapshot_restore_on_start, 0, 1), uint_getter(&Config::snapshot_restore_on_start)},
       {"RING_VNODES", "virtual nodes per ring member", uint_setter(&Config::ring_vnodes, 1, 100000),
        uint_getter(&Config::ring_vnodes)},
       {"CLIENT_IDLE_TIMEOUT_S", "close idle client connections after N seconds",
@@ -318,6 +328,10 @@ std::optional<Config> load_config(int argc, const char* const* argv, std::string
   }
   if (cfg.breaker_max_open_ms < cfg.breaker_open_ms) {
     error = "BREAKER_MAX_OPEN_MS must be >= BREAKER_OPEN_MS";
+    return std::nullopt;
+  }
+  if (cfg.snapshot_mode != "auto" && cfg.snapshot_mode != "file" && cfg.snapshot_mode != "block") {
+    error = "SNAPSHOT_MODE must be auto, file or block";
     return std::nullopt;
   }
   if (cfg.admin_port != 0 && cfg.admin_port == cfg.listen_port) {

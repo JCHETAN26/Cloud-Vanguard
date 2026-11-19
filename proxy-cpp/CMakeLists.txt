@@ -59,7 +59,8 @@ add_library(vanguard_core STATIC
   src/circuit_breaker.cpp
   src/embedding.cpp
   src/semantic_index.cpp
-  src/control.cpp)
+  src/control.cpp
+  src/snapshot.cpp)
 target_include_directories(vanguard_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(vanguard_core
   PUBLIC nlohmann_json::nlohmann_json Threads::Threads
@@ -102,7 +103,8 @@ if(VANGUARD_BUILD_TESTS)
     tests/test_config.cpp
     tests/test_circuit_breaker.cpp
     tests/test_semantic.cpp
-    tests/test_control.cpp)
+    tests/test_control.cpp
+    tests/test_snapshot.cpp)
   target_link_libraries(vanguard_tests PRIVATE vanguard_core vanguard_warnings GTest::gtest_main)
   target_compile_definitions(vanguard_tests PRIVATE VANGUARD_REPO_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/..")
   include(GoogleTest)

@@ -17,3 +17,6 @@ __pycache__/
 
 # Benchmark virtualenv (fastembed for the neural sidecar)
 benchmarks/.venv/
+
+# Phase 4
+operator-go/bin/
