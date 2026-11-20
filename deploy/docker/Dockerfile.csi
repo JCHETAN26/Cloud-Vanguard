@@ -1,6 +1,7 @@
 # csi.cloudvanguard.io driver (controller + node). Build from the repository root:
 #   docker build -f deploy/docker/Dockerfile.csi -t ghcr.io/jchetan26/cloudvanguard-csi:0.4.0 .
-# Runtime needs qemu-img (images/snapshots) and mount tools (node plugin).
+# Runtime needs qemu-img (images/snapshots) and mount + losetup (node plugin: image files are
+# attached to loop devices so raw-block pods get a real device node). On Ubuntu 24.04 losetup is in "mount".
 
 FROM golang:1.24 AS build
 WORKDIR /src
@@ -13,7 +14,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/csi-dri
 FROM ubuntu:24.04
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      qemu-utils e2fsprogs util-linux \
+      qemu-utils e2fsprogs util-linux mount \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/csi-driver /out/csictl /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/csi-driver"]
