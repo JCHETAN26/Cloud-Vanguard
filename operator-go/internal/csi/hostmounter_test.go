@@ -19,8 +19,17 @@ func requireLoop(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("needs root (loop devices, mount)")
 	}
-	if out, err := exec.Command("losetup", "--find").CombinedOutput(); err != nil {
+	out, err := exec.Command("losetup", "--find").CombinedOutput()
+	if err != nil {
 		t.Skipf("no usable loop devices: %v %s", err, out)
+	}
+	// In containers without a live devtmpfs (Codespaces, kind nodes) the next free loop device may have
+	// no device node; losetup then fails with ENOENT. That is the environment, not the driver.
+	if next := strings.TrimSpace(string(out)); next != "" {
+		if _, err := os.Stat(next); err != nil {
+			t.Skipf("next free loop device %s has no device node (container without devtmpfs; "+
+				"create it with: mknod %s b 7 <minor>)", next, next)
+		}
 	}
 }
 
