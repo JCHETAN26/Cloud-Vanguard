@@ -91,6 +91,7 @@ spec:
   upstreamPrimary: http://mock-llm.default.svc.cluster.local:9000
   image: ghcr.io/jchetan26/vanguard-proxy:0.4.0
   persistence: {storageClassName: cloudvanguard-block, size: 256Mi, snapshotIntervalSeconds: 10}
+  tracing: {enabled: true, endpoint: "http://otel-collector.observability.svc.cluster.local:4318", samplerRatio: "1"}
 EOF
 kubectl wait --for=condition=Available cachecluster/vc --timeout=300s
 
@@ -109,3 +110,24 @@ kill $PF; kubectl port-forward svc/vc 18080:8080 >/dev/null 2>&1 & PF=$!; sleep 
 hits=0; for i in $(seq 1 50); do [[ "$(ask "$i")" == HIT ]] && hits=$((hits+1)); done
 echo "warm restart: $hits/50 hits after pod replacement"
 [[ $hits -eq 50 ]]
+
+stats() { kubectl exec deploy/mock-llm -- python3 -c \
+  'import json,urllib.request;s=json.load(urllib.request.urlopen("http://127.0.0.1:9000/stats"));print(s["requests"], sum(1 for t in s.get("traceparents",[]) if t))'; }
+read -r upstream traced < <(stats)
+echo "upstream: $upstream chat requests in total (50 misses before the restart, none after); $traced carried a traceparent"
+[[ $upstream -eq 50 && $traced -eq 50 ]]
+
+echo "==> tracing through the operator and the in-cluster collector"
+# TracingReady=True needs the operator's config push to reach each pod's admin API and the pod's
+# tracing report to match spec.tracing.
+kubectl wait --for=condition=TracingReady cachecluster/vc --timeout=120s
+kubectl get cachecluster vc -o jsonpath='{.status.tracing}{"\n"}'
+spans=0
+for _ in $(seq 1 20); do   # the proxy batches every 5 s, the collector every 2 s
+  spans=$(kubectl -n observability logs deploy/otel-collector | grep -o '"spans": [0-9]*' | awk '{s+=$2} END {print s+0}')
+  [[ $spans -gt 0 ]] && break
+  sleep 3
+done
+echo "collector: $spans spans received from the gateway"
+[[ $spans -gt 0 ]]
+echo "e2e-kind: PASS"
