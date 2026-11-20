@@ -33,7 +33,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: manager
-          image: ghcr.io/jchetan26/cloudvanguard-operator:0.3.0
+          image: ghcr.io/jchetan26/cloudvanguard-operator:0.4.0
           args: ["--leader-elect", "--health-probe-bind-address=:8081", "--metrics-bind-address=:8080"]
           ports:
             - {name: metrics, containerPort: 8080}

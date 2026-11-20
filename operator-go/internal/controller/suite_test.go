@@ -13,10 +13,13 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -32,7 +35,13 @@ import (
 // collector: tests create Pods and set StatefulSet status themselves, and
 // check ownerReferences instead of waiting for cascading deletion.
 
+// rbacNamespace is invisible to the shared test manager (field selector on its
+// cache): deploy_test.go reconciles there as the operator's ServiceAccount,
+// with no admin-privileged reconciler racing it.
+const rbacNamespace = "rbac-as-operator"
+
 var (
+	restCfg    *rest.Config
 	k8sClient  client.Client
 	fakePush   = &recordingPusher{}
 	envMissing string
@@ -120,7 +129,9 @@ func TestMain(m *testing.M) {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(cachev1alpha1.AddToScheme(scheme))
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{Scheme: scheme, Metrics: metricsserver.Options{BindAddress: "0"}})
+	restCfg = cfg
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{Scheme: scheme, Metrics: metricsserver.Options{BindAddress: "0"},
+		Cache: cache.Options{DefaultFieldSelector: fields.OneTermNotEqualSelector("metadata.namespace", rbacNamespace)}})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "manager:", err)
 		os.Exit(1)
