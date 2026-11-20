@@ -30,7 +30,7 @@ DATA="$OUT/data"
 PY="$VENV/bin/python"
 NGPU="$(nvidia-smi -L 2>/dev/null | wc -l | tr -d ' ')"
 STATUS="$OUT/stages.tsv"
-: >"$STATUS"
+want setup && : >"$STATUS"  # a rerun without setup appends to the same record
 PIDS=()
 cleanup() { for p in "${PIDS[@]}"; do kill "$p" 2>/dev/null || true; done; }
 trap cleanup EXIT
@@ -42,7 +42,9 @@ stage() {  # stage <name> <command...>
   want "$name" || return 0
   log "== $name"
   local t0 t1 rc; t0=$(date +%s)
-  "$@" >"$OUT/logs/$name.log" 2>&1; rc=$?
+  # Subshell: a stage's `set -e` (setup, smoke) must not leak into the driver, or the first failing stage kills
+  # the whole run instead of being recorded.
+  ( "$@" ) >"$OUT/logs/$name.log" 2>&1; rc=$?
   t1=$(date +%s)
   printf '%s\t%s\t%s\t%s\n' "$name" "$rc" "$t0" "$t1" >>"$STATUS"
   if [[ $rc -eq 0 ]]; then log "   ok ($((t1 - t0)) s)"; else log "   FAILED rc=$rc ($((t1 - t0)) s): tail of $OUT/logs/$name.log"; tail -15 "$OUT/logs/$name.log" | sed 's/^/      /'; fi
