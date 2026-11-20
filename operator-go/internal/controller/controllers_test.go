@@ -610,6 +610,11 @@ func TestCacheClusterPersistenceUsesBlockVolumes(t *testing.T) {
 	if len(c.VolumeDevices) != 1 || c.VolumeDevices[0].DevicePath != "/dev/vanguard-cache" {
 		t.Fatalf("volumeDevices: %+v", c.VolumeDevices)
 	}
+	// The non-root proxy must be able to open the root:disk 0660 device node.
+	if sc := sts.Spec.Template.Spec.SecurityContext; sc == nil || len(sc.SupplementalGroups) != 1 ||
+		sc.SupplementalGroups[0] != render.DiskGroupID {
+		t.Fatalf("pod securityContext %+v: want supplementalGroups [disk]", sc)
+	}
 	for name, want := range map[string]string{"SNAPSHOT_PATH": "/dev/vanguard-cache", "SNAPSHOT_MODE": "block",
 		"SNAPSHOT_INTERVAL_S": "60"} {
 		if got, _ := envValue(c, name); got != want {

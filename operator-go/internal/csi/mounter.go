@@ -24,6 +24,7 @@ type Mounter interface {
 const (
 	stagedDevice = "device"     // <staging>/device -> real device (block)
 	stagedMarker = ".vg-staged" // filesystem staging marker (LinkMounter)
+	stagedLoop   = ".vg-loop"   // loop device HostMounter attached for an image file (detached on unstage)
 )
 
 // LinkMounter needs no privileges. Block volumes are real: the staged and
@@ -126,13 +127,58 @@ func isMountPoint(path string) bool {
 	return exec.Command("mountpoint", "-q", path).Run() == nil
 }
 
+// loopFor returns a loop device backed by image, attaching one if none is
+// (idempotent across NodeStage retries and plugin restarts).
+func loopFor(image string) (string, error) {
+	out, err := exec.Command("losetup", "--noheadings", "--output", "NAME", "--associated", image).Output()
+	if err != nil {
+		return "", fmt.Errorf("losetup --associated %s: %w", image, err)
+	}
+	if fields := strings.Fields(string(out)); len(fields) > 0 {
+		return fields[0], nil
+	}
+	out, err = exec.Command("losetup", "--find", "--show", image).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("losetup --find --show %s: %w: %s", image, err, strings.TrimSpace(string(out)))
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// resolveDevice turns what ControllerPublish handed over into a block device
+// node. The qmp attacher returns a disk hot-plugged into the node VM (already a
+// device); the local attacher returns the volume's image *file*, which a pod
+// cannot use as a raw block device (the runtime rejects it: "not a device
+// node"), so it is attached to a loop device and the loop device is recorded
+// for NodeUnstage to detach.
+func resolveDevice(device, staging string) (string, error) {
+	info, err := os.Stat(device)
+	if err != nil {
+		return "", fmt.Errorf("device %s: %w", device, err)
+	}
+	if !info.Mode().IsRegular() {
+		return device, nil
+	}
+	loop, err := loopFor(device)
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(staging, stagedLoop), []byte(loop), 0o600); err != nil {
+		return "", err
+	}
+	return loop, nil
+}
+
 func (HostMounter) Stage(device, staging string, block bool, fsType string) error {
+	if err := os.MkdirAll(staging, 0o750); err != nil {
+		return err
+	}
 	if block {
 		// Block volumes are published straight from the device node.
-		if err := os.MkdirAll(staging, 0o750); err != nil {
+		dev, err := resolveDevice(device, staging)
+		if err != nil {
 			return err
 		}
-		return replaceSymlink(device, filepath.Join(staging, stagedDevice))
+		return replaceSymlink(dev, filepath.Join(staging, stagedDevice))
 	}
 	if isMountPoint(staging) {
 		return nil
@@ -140,20 +186,32 @@ func (HostMounter) Stage(device, staging string, block bool, fsType string) erro
 	if fsType == "" {
 		fsType = "ext4"
 	}
-	if err := exec.Command("blkid", device).Run(); err != nil { // no filesystem yet
-		if err := run("mkfs."+fsType, "-q", device); err != nil {
+	dev, err := resolveDevice(device, staging)
+	if err != nil {
+		return err
+	}
+	if err := exec.Command("blkid", dev).Run(); err != nil { // no filesystem yet
+		if err := run("mkfs."+fsType, "-q", dev); err != nil {
 			return err
 		}
 	}
-	if err := os.MkdirAll(staging, 0o750); err != nil {
-		return err
-	}
-	return run("mount", "-t", fsType, device, staging)
+	return run("mount", "-t", fsType, dev, staging)
 }
 
 func (HostMounter) Unstage(staging string) error {
 	if isMountPoint(staging) {
 		if err := run("umount", staging); err != nil {
+			return err
+		}
+	}
+	if b, err := os.ReadFile(filepath.Join(staging, stagedLoop)); err == nil {
+		if loop := strings.TrimSpace(string(b)); loop != "" {
+			if out, err := exec.Command("losetup", "--detach", loop).CombinedOutput(); err != nil &&
+				!strings.Contains(string(out), "No such device") {
+				return fmt.Errorf("losetup --detach %s: %w: %s", loop, err, strings.TrimSpace(string(out)))
+			}
+		}
+		if err := os.Remove(filepath.Join(staging, stagedLoop)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	}

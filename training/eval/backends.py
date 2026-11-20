@@ -22,10 +22,12 @@ import time
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-import torch
+from typing import TYPE_CHECKING
 
-from ..data.tokenizer import CharTokenizer
-from ..models.precision import autocast
+if TYPE_CHECKING:  # torch is imported lazily: the OpenAI-HTTP backend and the harness need only the stdlib
+    import torch
+
+    from ..data.tokenizer import CharTokenizer
 
 
 @dataclass
@@ -55,28 +57,39 @@ class TorchBackend(Backend):
 
     def __init__(self, model: torch.nn.Module, *, device: torch.device | None = None, precision: str = "fp32",
                  tokenizer: CharTokenizer | None = None):
+        from ..data.tokenizer import CharTokenizer
+
         self.model = model.eval()
         self.device = device or next(model.parameters()).device
         self.precision = precision
         self.tok = tokenizer or CharTokenizer()
 
     def _sync(self) -> None:
+        import torch
+
         if self.device.type == "cuda":
             torch.cuda.synchronize(self.device)
 
-    @torch.no_grad()
     def generate(self, prompt: str, max_new_tokens: int) -> Generation:
-        ids = torch.tensor([self.tok.encode(prompt, bos=True)], device=self.device)
-        self._sync()
-        t0 = time.perf_counter()
-        with autocast(self.device, self.precision):
-            new = self.model.generate(ids, max_new_tokens, eos_id=self.tok.eos_id)
-        self._sync()
-        dt = time.perf_counter() - t0
+        import torch
+
+        from ..models.precision import autocast
+
+        with torch.no_grad():
+            ids = torch.tensor([self.tok.encode(prompt, bos=True)], device=self.device)
+            self._sync()
+            t0 = time.perf_counter()
+            with autocast(self.device, self.precision):
+                new = self.model.generate(ids, max_new_tokens, eos_id=self.tok.eos_id)
+            self._sync()
+            dt = time.perf_counter() - t0
         return Generation(self.tok.decode(new[0].tolist()), dt, int(new.shape[1]))
 
-    @torch.no_grad()
     def score(self, prompt: str, completion: str) -> tuple[float, int]:
+        import torch
+
+        from ..models.precision import autocast
+
         ids = self.tok.encode(prompt + completion, bos=True, eos=True)
         max_len = getattr(getattr(self.model, "config", None), "max_len", None)
         if max_len:
@@ -84,18 +97,20 @@ class TorchBackend(Backend):
         start = 1 + len(prompt)
         if start >= len(ids):
             return 0.0, 0
-        x = torch.tensor([ids], device=self.device)
-        with autocast(self.device, self.precision):
-            logits, _ = self.model(x)
-        logp = torch.log_softmax(logits[0, :-1].float(), dim=-1)
-        targets = x[0, 1:]
-        nll = -logp.gather(1, targets[:, None])[:, 0]
-        scored = nll[start - 1:]
+        with torch.no_grad():
+            x = torch.tensor([ids], device=self.device)
+            with autocast(self.device, self.precision):
+                logits, _ = self.model(x)
+            logp = torch.log_softmax(logits[0, :-1].float(), dim=-1)
+            targets = x[0, 1:]
+            nll = -logp.gather(1, targets[:, None])[:, 0]
+            scored = nll[start - 1:]
         return float(scored.sum()), int(scored.numel())
 
 
 def vllm_available() -> bool:
     try:
+        import torch
         import vllm  # noqa: F401
     except Exception:
         return False

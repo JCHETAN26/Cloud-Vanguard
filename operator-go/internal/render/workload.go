@@ -22,6 +22,11 @@ const (
 	// where the raw block device appears in the container.
 	WarmCacheVolume     = "warm-cache"
 	WarmCacheDevicePath = "/dev/vanguard-cache"
+	// DiskGroupID is the "disk" group (gid 6 on Debian, Ubuntu, RHEL and Fedora). The container runtime
+	// passes a raw block volume through with the host node's ownership, root:disk 0660, and does not
+	// apply fsGroup to devices, so the non-root proxy (uid 10001) needs this supplemental group to open
+	// the warm-cache device. Found on the first kind run: "open /dev/vanguard-cache: Permission denied".
+	DiskGroupID int64 = 6
 	// TemplateHashAnnotation (on the StatefulSet) records the hash of the pod
 	// template the operator last rendered. The template is only rewritten when
 	// that hash changes, so steady-state reconciles send no StatefulSet update.
@@ -152,7 +157,9 @@ func PodTemplate(cc *cachev1alpha1.CacheCluster, tracing Tracing) corev1.PodTemp
 		env = append(env, corev1.EnvVar{Name: "FALLBACK_UPSTREAM_URL", Value: cc.Spec.UpstreamFallback})
 	}
 	var devices []corev1.VolumeDevice
+	var podSecurity *corev1.PodSecurityContext
 	if p := cc.Spec.Persistence; p != nil {
+		podSecurity = &corev1.PodSecurityContext{SupplementalGroups: []int64{DiskGroupID}}
 		env = append(env,
 			corev1.EnvVar{Name: "SNAPSHOT_PATH", Value: WarmCacheDevicePath},
 			corev1.EnvVar{Name: "SNAPSHOT_MODE", Value: "block"},
@@ -187,6 +194,7 @@ func PodTemplate(cc *cachev1alpha1.CacheCluster, tracing Tracing) corev1.PodTemp
 			VolumeDevices: devices,
 		}},
 		// Room for the SIGTERM snapshot to complete.
+		SecurityContext:               podSecurity,
 		TerminationGracePeriodSeconds: ptr.To(int64(60)),
 		Volumes: []corev1.Volume{{
 			Name: "control",

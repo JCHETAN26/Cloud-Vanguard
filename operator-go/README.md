@@ -53,8 +53,12 @@ The `csi.cloudvanguard.io` driver (`cmd/csi-driver`, `internal/csi`, `internal/s
 - **Controller:** create, delete and expand volumes as `qemu-img` raw/qcow2 images; attach them to a node (the image
   path for single-host clusters, or QMP `blockdev-add` + `scsi-hd` hot-plug into a node VM); take snapshots
   (`qemu-img convert -c -O qcow2`), restore from snapshots, and list volumes and snapshots with pagination.
-- **Node:** stage and publish. `HostMounter` (privileged) runs mkfs, mount and bind mounts; `LinkMounter` (no
-  privileges) exposes block volumes via symlinks and simulates filesystem volumes.
+- **Node:** stage and publish. `HostMounter` (privileged) attaches image files (`--attacher=local`) to loop devices,
+  runs mkfs and mount, and bind-mounts device nodes or directories into pods; `LinkMounter` (no privileges) exposes
+  block volumes via symlinks and simulates filesystem volumes.
+
+Pods with `spec.persistence` get `supplementalGroups: [6]` (`disk`): block devices reach the container with the node's
+`root:disk 0660` ownership and fsGroup does not apply to them, so this is what lets the non-root proxy open its volume.
 
 `cmd/csictl` issues the same RPCs as the Kubernetes sidecars and kubelet, for scripts. Manifests are in `../deploy/csi`.
 
@@ -71,6 +75,9 @@ Tests:
   - An attachment that can't be recorded is rolled back.
   - A restore from a snapshot larger than `limit_bytes` returns `OUT_OF_RANGE`.
   - Metadata writes are fsynced (file and directory).
+- **Node data path (Milestone 4, root only):** a block volume from an image file is published as a real device node
+  backed by a loop device, writes reach the image, retries reuse the loop device and unstage detaches it; ext4
+  volumes survive unstage/restage. Run with `sudo` (see `internal/csi/hostmounter_test.go`).
 
 ## Tracing (Milestone 2)
 
@@ -124,7 +131,7 @@ make generate manifests   # controller-gen: deepcopy, CRDs, RBAC
 make proto                # Go types from ../proto (needs protoc)
 make test                 # go vet + go test ./... with envtest (real kube-apiserver + etcd 1.32)
 make build                # bin/manager
-kubectl apply -k config/default   # CRDs, RBAC, operator Deployment (needs an image; Phase 4)
+kubectl apply -k config/default   # CRDs, RBAC, operator Deployment (image: make -C .. images)
 ```
 
 Tools are pinned and installed into `bin/`: controller-gen v0.17.2, setup-envtest (release-0.20),
@@ -148,12 +155,17 @@ protoc-gen-go v1.36.5.
     changes, `status.tracing`/`TracingReady` from pod reports, API rejection of invalid specs, and (fake client)
     invalid specs leaving the StatefulSet untouched.
   - A steady-state reconcile issues zero API writes.
+  - **The deploy bundle under its own RBAC (Milestone 4):** `kubectl kustomize ../deploy` is server-side-applied to
+    the API server, then both reconcilers run on the persistent sample while impersonating the operator's
+    ServiceAccount (read from the rendered Deployment): cluster-wide list/watch of every watched type, leader-election
+    Lease and events in its namespace only, StatefulSet/Services/ConfigMap/Secret/status writes, delete and recreate.
+    Removing any needed verb from `config/rbac/role.yaml` fails it with Forbidden.
 
 ### Known limits
 
-- **Not run on a real cluster yet.** Neither kind nor k3s is available, and there's no container image, so
-  StatefulSet pods, kubelet ConfigMap sync and garbage collection are simulated or asserted through owner
-  references. Phase 4 adds a kind-based end-to-end test.
+- **envtest has no kubelet, scheduler or garbage collector**, so these tests simulate pods and assert owner
+  references. The real-cluster path (pods, CSI attach, ConfigMap sync, warm restart, tracing) is covered by
+  `make e2e-kind` (`../deploy/scripts/e2e-kind.sh`), which passes on kind (Milestone 4).
 - **Ring membership comes from `spec.replicas`, not readiness.** This keeps ownership stable while pods restart;
   requests for an unready owner are served by the ingress pod (local fallback) instead of reshuffling keys.
   Scaling down moves about 1/N of the keys.

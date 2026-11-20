@@ -1,0 +1,12 @@
+# Build context for deploy/docker/*: send sources only.
+.git
+**/.venv
+**/__pycache__
+proxy-cpp/build*
+operator-go/bin
+benchmarks/results
+observability/.bin
+runs
+mlruns
+**/mlflow.db
+**/._*
