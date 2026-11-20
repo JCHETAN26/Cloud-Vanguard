@@ -38,7 +38,9 @@ class DistContext:
         return self.world_size > 1
 
 
-def init_distributed(device: torch.device, *, timeout_s: int = 300) -> DistContext:
+def init_distributed(device: torch.device, *, timeout_s: int = 1800) -> DistContext:
+    """timeout_s bounds collectives and barriers: rank 0 runs the final evaluation while the other ranks
+    wait at a barrier, so it must cover the evaluation, not just a training step."""
     world = int(os.environ.get("WORLD_SIZE", "1"))
     if world <= 1:
         return DistContext(device=device)
