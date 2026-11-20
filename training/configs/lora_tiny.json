@@ -1,0 +1,14 @@
+{
+  "mode": "lora",
+  "lora_r": 8,
+  "lora_alpha": 16,
+  "lora_targets": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+  "steps": 1200,
+  "batch_size": 32,
+  "lr": 0.005,
+  "warmup_steps": 50,
+  "log_every": 100,
+  "eval_every": 400,
+  "eval_examples": 200,
+  "run_name": "lora-tiny"
+}

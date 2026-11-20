@@ -4,16 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cloudvanguard-training"
-version = "0.0.0"
-description = "CloudVanguard Milestone 3: PEFT/LoRA fine-tuning, quantization and evaluation (scaffold, no code yet)"
+version = "0.3.0"
+description = "CloudVanguard Milestone 3: LoRA/QLoRA fine-tuning, quantization, Arrow data loading, MLflow tracking and evaluation"
 requires-python = ">=3.10"
-dependencies = []
+# Versions verified in CI-like runs are pinned in requirements.txt.
+dependencies = ["torch>=2.3", "pyarrow>=14", "numpy>=1.24"]
 
 [project.optional-dependencies]
-# Declared for Milestone 3; versions are pinned when the code lands.
-train = ["torch", "peft", "transformers", "accelerate", "pyarrow"]
-track = ["mlflow"]
-serve-eval = ["vllm"]
+track = ["mlflow>=2.10"]
+hf = ["transformers>=4.40", "peft>=0.10", "safetensors>=0.4"]
+quant-gpu = ["bitsandbytes>=0.43"]   # CUDA only; the portable torch quantizer is used otherwise
+serve-eval = ["vllm>=0.5"]           # CUDA only; the torch / OpenAI-HTTP backends are used otherwise
+test = ["pytest>=7"]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[project.scripts]
+cloudvanguard-train = "training.cli:main"
+
+[tool.setuptools]
+package-dir = {"training" = "."}
+packages = ["training", "training.data", "training.models", "training.eval"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

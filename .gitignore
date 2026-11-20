@@ -23,3 +23,10 @@ operator-go/bin/
 
 # Milestone 1: downloaded otelcol / promtool
 observability/.bin/
+
+# Milestone 3: training runs, local MLflow stores, virtualenvs
+training/.venv/
+runs/
+mlruns/
+mlflow.db
+*.egg-info/

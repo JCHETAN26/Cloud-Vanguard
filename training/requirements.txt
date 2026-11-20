@@ -1,0 +1,9 @@
+# Versions the Milestone 3 tests and benchmark were run with (Codespace, Python 3.12, CPU).
+# CPU-only torch:  pip install torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu
+torch>=2.3
+pyarrow==26.0.1
+mlflow==3.18.0
+pytest
+# Optional: PEFT interoperability tests (skipped when absent)
+transformers==5.23.0
+peft==0.22.0
