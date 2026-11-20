@@ -30,13 +30,13 @@ DATA="$OUT/data"
 PY="$VENV/bin/python"
 NGPU="$(nvidia-smi -L 2>/dev/null | wc -l | tr -d ' ')"
 STATUS="$OUT/stages.tsv"
-want setup && : >"$STATUS"  # a rerun without setup appends to the same record
 PIDS=()
 cleanup() { for p in "${PIDS[@]}"; do kill "$p" 2>/dev/null || true; done; }
 trap cleanup EXIT
 
 log() { echo "[$(date -u +%H:%M:%S)] $*" | tee -a "$OUT/logs/driver.log"; }
 want() { [[ " $STAGES " == *" $1 "* ]]; }
+want setup && : >"$STATUS"  # a rerun without setup appends to the same record
 stage() {  # stage <name> <command...>
   local name="$1"; shift
   want "$name" || return 0
