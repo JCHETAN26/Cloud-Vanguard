@@ -14,7 +14,7 @@ TAG ?= 0.4.0
 KUBECTL ?= kubectl
 SCRIPTS := deploy/scripts/*.sh benchmarks/*.sh observability/scripts/*.sh
 
-.PHONY: help build test test-asan test-go test-training test-all bench bench-m1 bench-m3 bench-phase2 bench-phase4 \
+.PHONY: help build test test-asan test-go test-training test-all bench bench-m1 bench-m3 bench-gpu bench-phase2 bench-phase4 \
         verify-observability verify-deploy images e2e-kind env-check clean
 
 help:
@@ -36,6 +36,7 @@ help:
 	@echo "  make bench               Phase 1 MISS/HIT benchmark"
 	@echo "  make bench-m1            Milestone 1: latency/throughput baseline + tracing overhead"
 	@echo "  make bench-m3            Milestone 3: data loading, LoRA/QLoRA/full/DDP training, evaluation"
+	@echo "  make bench-gpu           GPU box: Qwen2.5-14B LoRA vs QLoRA-NF4, 2-GPU DDP, vLLM eval, GPU telemetry"
 	@echo "  make bench-phase2        semantic cache + failover benchmark"
 	@echo "  make bench-phase4        CSI/QEMU persistence + chaos benchmark"
 
@@ -58,6 +59,9 @@ test-training:
 	$(PYTHON) -m pytest training/tests -q
 
 test-all: test test-asan test-go test-training
+
+bench-gpu:
+	./benchmarks/gpu/run_gpu_bench.sh
 
 bench:
 	./benchmarks/bench_phase1.sh

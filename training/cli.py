@@ -1,4 +1,4 @@
-"""Command line: python -m training {info,prepare-data,train,eval}.
+"""Command line: python -m training {info,prepare-data,prepare-hf-data,train,train-hf,eval}.
 
 Examples (from the repository root):
 
@@ -45,7 +45,7 @@ def _cmd_info(_: argparse.Namespace) -> int:
                                  "nccl": torch.distributed.is_nccl_available()},
         "pyarrow": has("pyarrow"), "mlflow": has("mlflow"), "safetensors": has("safetensors"),
         "bitsandbytes_usable": bnb_available(), "vllm_usable": vllm_available(),
-        "transformers": has("transformers"), "peft": has("peft"),
+        "transformers": has("transformers"), "peft": has("peft"), "nvml": has("pynvml"),
     }
     print(json.dumps(info, indent=2))
     return 0
@@ -100,6 +100,50 @@ def _cmd_train(a: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_prepare_hf(a: argparse.Namespace) -> int:
+    from .hf.data import prepare
+
+    written = prepare(a.out, a.tokenizer, train_rows=a.train_rows, eval_rows=a.eval_rows, seed=a.seed,
+                      parquet_dir=a.parquet_dir or None)
+    for name, n in written.items():
+        print(f"wrote {n:>7} rows  {os.path.join(a.out, name)}")
+    return 0
+
+
+_HF_TRAIN_FLAGS = {
+    "model": str, "train_data": str, "eval_data": str, "output_dir": str, "quant_bits": int, "quant_backend": str,
+    "dtype": str, "lora_r": int, "lora_alpha": float, "lora_dropout": float, "steps": int, "batch_size": int,
+    "grad_accum": int, "lr": float, "warmup_steps": int, "max_len": int, "device": str, "seed": int,
+    "log_every": int, "eval_examples": int, "max_new_tokens": int, "tracking_uri": str, "experiment": str,
+    "run_name": str,
+}
+
+
+def _cmd_train_hf(a: argparse.Namespace) -> int:
+    from .hf.train import HFTrainConfig, train_hf
+
+    d: dict = {}
+    if a.config:
+        with open(a.config) as f:
+            d.update(json.load(f))
+    for k in _HF_TRAIN_FLAGS:
+        v = getattr(a, k)
+        if v is not None:
+            d[k] = v
+    if a.lora_targets:
+        d["lora_targets"] = a.lora_targets.split(",")
+    if a.no_gradient_checkpointing:
+        d["gradient_checkpointing"] = False
+    if a.no_track:
+        d["track"] = False
+    summary = train_hf(HFTrainConfig.from_dict(d))
+    if summary:
+        print(json.dumps({k: summary[k] for k in summary if k != "eval"} |
+                         ({"eval": {k: v for k, v in summary["eval"].items() if k != "samples"}}
+                          if "eval" in summary else {}), indent=2, default=str))
+    return 0
+
+
 def _cmd_eval(a: argparse.Namespace) -> int:
     from .data import ArrowTokenDataset
     from .eval import OpenAIHTTPBackend, TorchBackend, Tracker, VLLMBackend, evaluate, vllm_available
@@ -126,10 +170,26 @@ def _cmd_eval(a: argparse.Namespace) -> int:
         model.to(device)
         torch.manual_seed(0)
         backend = TorchBackend(model, device=device, precision=resolve_precision(a.precision, device))
+    elif backend_name == "hf":
+        import torch
+
+        from .hf import HFBackend, load_hf_model, load_tokenizer
+        from .models import load_adapter, resolve_device
+        if not a.hf_model:
+            raise SystemExit("--hf-model is required for the hf backend")
+        device = resolve_device(a.device)
+        model, _ = load_hf_model(a.hf_model, device=device, dtype=a.precision if a.precision != "auto" else "bf16",
+                                 quant_bits=a.quant_bits, quant_backend=a.quant_backend)
+        if a.adapter:
+            load_adapter(model, a.adapter)
+            model.to(device)
+        torch.manual_seed(0)
+        backend = HFBackend(model, load_tokenizer(a.hf_model), device=device,
+                            precision=a.precision if a.precision != "auto" else "bf16")
     elif backend_name == "vllm":
         if not a.hf_model:
             raise SystemExit("--hf-model is required for the vllm backend")
-        backend = VLLMBackend(a.hf_model, adapter=a.adapter or None)
+        backend = VLLMBackend(a.hf_model, adapter=a.adapter or None, max_model_len=a.max_model_len)
     elif backend_name == "openai":
         if not a.base_url:
             raise SystemExit("--base-url is required for the openai backend")
@@ -177,12 +237,28 @@ def build_parser() -> argparse.ArgumentParser:
     tr.add_argument("--lora-targets", help="comma-separated module names, e.g. q_proj,v_proj")
     tr.add_argument("--no-track", action="store_true", help="disable MLflow")
 
+    ph = sub.add_parser("prepare-hf-data", help="AG News topic classification tokenized for a Hugging Face model")
+    ph.add_argument("--out", required=True)
+    ph.add_argument("--tokenizer", required=True, help="Hugging Face model id or dir whose tokenizer to use")
+    ph.add_argument("--train-rows", type=int, default=4000)
+    ph.add_argument("--eval-rows", type=int, default=500)
+    ph.add_argument("--seed", type=int, default=0)
+    ph.add_argument("--parquet-dir", default="", help="directory with the AG News parquet files (offline)")
+
+    th = sub.add_parser("train-hf", help="LoRA/QLoRA on a Hugging Face model (GPU); use torchrun for DDP")
+    th.add_argument("--config", help="JSON file with HFTrainConfig fields; flags override it")
+    for k, typ in _HF_TRAIN_FLAGS.items():
+        th.add_argument("--" + k.replace("_", "-"), dest=k, type=typ, default=None)
+    th.add_argument("--lora-targets", help="comma-separated module names")
+    th.add_argument("--no-gradient-checkpointing", action="store_true")
+    th.add_argument("--no-track", action="store_true", help="disable MLflow")
+
     ev = sub.add_parser("eval", help="evaluate a model/adapter: exact match, perplexity, latency")
     ev.add_argument("--data", required=True, help="Arrow file with prompt/answer/text columns")
-    ev.add_argument("--backend", default="auto", choices=["auto", "torch", "vllm", "openai"])
+    ev.add_argument("--backend", default="auto", choices=["auto", "torch", "hf", "vllm", "openai"])
     ev.add_argument("--base-model", default="", help="TinyCausalLM checkpoint dir (torch backend)")
     ev.add_argument("--adapter", default="", help="LoRA adapter dir")
-    ev.add_argument("--hf-model", default="", help="Hugging Face model dir or id (vllm backend)")
+    ev.add_argument("--hf-model", default="", help="Hugging Face model dir or id (hf and vllm backends)")
     ev.add_argument("--base-url", default="", help="OpenAI-compatible base URL, e.g. http://gateway:8080/v1")
     ev.add_argument("--model-name", default="default")
     ev.add_argument("--api-key", default="")
@@ -192,6 +268,8 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--device", default="auto")
     ev.add_argument("--limit", type=int, default=200)
     ev.add_argument("--max-new-tokens", type=int, default=12)
+    ev.add_argument("--max-model-len", type=int, default=2048,
+                    help="vllm backend: context cap that sizes the KV cache (the model's own may be 128k)")
     ev.add_argument("--output", default="")
     ev.add_argument("--track", action="store_true", help="log the evaluation to MLflow")
     ev.add_argument("--tracking-uri", default="")
@@ -203,8 +281,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
     a = build_parser().parse_args(argv)
-    logging.basicConfig(level=logging.INFO if a.verbose or a.cmd == "train" else logging.WARNING,
+    logging.basicConfig(level=logging.INFO if a.verbose or a.cmd in ("train", "train-hf") else logging.WARNING,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s", stream=sys.stderr)
     for noisy in ("mlflow", "alembic", "urllib3"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
-    return {"info": _cmd_info, "prepare-data": _cmd_prepare, "train": _cmd_train, "eval": _cmd_eval}[a.cmd](a)
+    return {"info": _cmd_info, "prepare-data": _cmd_prepare, "prepare-hf-data": _cmd_prepare_hf, "train": _cmd_train,
+            "train-hf": _cmd_train_hf, "eval": _cmd_eval}[a.cmd](a)
