@@ -12,7 +12,8 @@ import (
 // HostMounter with --attacher=local: the "device" is a raw image file. Found by
 // the first kind run: publishing the file itself made containerd refuse the pod
 // ("not a device node"). Needs root and loop devices; run with
-//   sudo -E go test ./internal/csi -run HostMounter
+//
+//	sudo -E go test ./internal/csi -run HostMounter
 func requireLoop(t *testing.T) {
 	t.Helper()
 	if os.Geteuid() != 0 {

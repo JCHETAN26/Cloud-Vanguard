@@ -31,6 +31,15 @@ done
 echo "==> kind cluster"
 sudo mkdir -p /var/lib/cloudvanguard-csi
 kind get clusters | grep -qx "$CLUSTER" || kind create cluster --name "$CLUSTER" --config "$ROOT/deploy/kind/kind-config.yaml"
+# Raw-block volumes need loop devices twice: the CSI node plugin attaches each image file to one, and
+# kubelet attaches another to hold the published device. kind nodes are containers without a live
+# devtmpfs, so /dev/loopN for N beyond what existed at node creation never appears and losetup fails
+# ("failed to set up loop device: No such file or directory"). Pre-create the nodes; real nodes do
+# not need this.
+for node in $(kind get nodes --name "$CLUSTER"); do
+  docker exec "$node" sh -c 'for i in $(seq 0 63); do [ -e /dev/loop$i ] || mknod -m 0660 /dev/loop$i b 7 $i; done
+                             chgrp disk /dev/loop[0-9]* 2>/dev/null || true'
+done
 for img in vanguard-proxy cloudvanguard-operator cloudvanguard-csi; do
   kind load docker-image --name "$CLUSTER" "ghcr.io/jchetan26/$img:$TAG"
 done
