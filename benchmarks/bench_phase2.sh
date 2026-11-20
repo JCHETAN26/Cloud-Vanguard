@@ -81,7 +81,7 @@ if [[ "${SKIP_NEURAL:-0}" != 1 ]]; then
 fi
 if [[ "${SKIP_NEURAL:-0}" != 1 ]]; then
   "$VENV/bin/python" "$B/embedder_sidecar.py" --port $EMBEDDER >"$RESULTS/embedder.log" 2>&1 & EMB_PID=$!
-  PIDS+=($EMB_PID)
+  PIDS+=("$EMB_PID")
   wait_for "http://127.0.0.1:$EMBEDDER/healthz" "embedder sidecar" 300
   head -1 "$RESULTS/embedder.log"
   env "${common_env[@]}" LISTEN_PORT=$PROXY_B SEMANTIC_MODE=neural EMBEDDER_URL="http://127.0.0.1:$EMBEDDER" \

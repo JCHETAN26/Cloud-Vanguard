@@ -38,7 +38,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:$OTLP_PORT" OTEL_BSP_SCHEDULE_DELA
 for _ in $(seq 100); do curl -fsS "http://127.0.0.1:$PX_PORT/healthz" >/dev/null 2>&1 && break; sleep 0.1; done
 
 TRACE="$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
-for i in 1 2 3; do  # miss, hit, hit
+for _ in 1 2 3; do  # miss, hit, hit
   curl -fsS -o /dev/null "http://127.0.0.1:$PX_PORT/v1/chat/completions" -H "Authorization: Bearer sk-check" \
     -H "traceparent: 00-$TRACE-00f067aa0ba902b7-01" -d '{"model":"m","messages":[{"role":"user","content":"collector check"}]}'
 done

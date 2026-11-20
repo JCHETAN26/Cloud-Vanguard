@@ -131,5 +131,10 @@ if(VANGUARD_BUILD_TESTS)
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/integration/test_http_robustness.py
               --binary $<TARGET_FILE:vanguard-proxy> --base-port 18500)
     set_tests_properties(http_robustness PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
+    # training/ evaluation harness measured through the gateway (Milestone 4; stdlib only, no torch).
+    add_test(NAME eval_via_gateway
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/integration/test_eval_via_gateway.py
+              --binary $<TARGET_FILE:vanguard-proxy> --base-port 18700)
+    set_tests_properties(eval_via_gateway PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
   endif()
 endif()
