@@ -1,0 +1,101 @@
+2026-11-21 05:58:21,374 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-21 05:58:21,434 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-11-21 05:58:21,486 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-11-21 05:58:21,795 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-21 05:58:21,845 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-21 05:58:21,896 INFO httpx2: HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-14B/resolve/97e1e76335b7017d8f67c08a19d103c0504298c9/adapter_config.json "HTTP/1.1 404 Not Found"
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-11-21 05:58:21,896 WARNING huggingface_hub.utils._http: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-11-21 05:58:23,511 INFO httpx2: HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-14B/resolve/97e1e76335b7017d8f67c08a19d103c0504298c9/model.safetensors "HTTP/1.1 404 Not Found"
+Loading weights:   0%|          | 0/579 [00:00<?, ?it/s]Loading weights:   0%|          | 1/579 [00:00<01:11,  8.03it/s]Loading weights:   0%|          | 2/579 [00:00<01:48,  5.34it/s]Loading weights:   3%|▎         | 17/579 [00:00<00:11, 48.84it/s]Loading weights:   7%|▋         | 40/579 [00:00<00:05, 98.49it/s]Loading weights:   9%|▉         | 52/579 [00:00<00:05, 103.78it/s]Loading weights:  11%|█▏        | 66/579 [00:00<00:04, 113.51it/s]Loading weights:  15%|█▌        | 87/579 [00:00<00:03, 126.40it/s]Loading weights:  18%|█▊        | 102/579 [00:01<00:03, 132.22it/s]Loading weights:  21%|██▏       | 124/579 [00:01<00:03, 148.14it/s]Loading weights:  24%|██▍       | 140/579 [00:01<00:03, 145.56it/s]Loading weights:  28%|██▊       | 160/579 [00:01<00:02, 160.15it/s]Loading weights:  31%|███       | 178/579 [00:01<00:02, 162.94it/s]Loading weights:  34%|███▍      | 197/579 [00:01<00:02, 165.30it/s]Loading weights:  38%|███▊      | 220/579 [00:01<00:02, 174.95it/s]Loading weights:  41%|████      | 238/579 [00:01<00:02, 166.66it/s]Loading weights:  44%|████▍     | 256/579 [00:01<00:01, 164.95it/s]Loading weights:  47%|████▋     | 273/579 [00:02<00:02, 152.70it/s]Loading weights:  50%|█████     | 292/579 [00:02<00:01, 157.60it/s]Loading weights:  53%|█████▎    | 308/579 [00:02<00:01, 148.97it/s]Loading weights:  57%|█████▋    | 329/579 [00:02<00:01, 158.18it/s]Loading weights:  60%|█████▉    | 345/579 [00:02<00:01, 157.04it/s]Loading weights:  63%|██████▎   | 364/579 [00:02<00:01, 157.96it/s]Loading weights:  66%|██████▌   | 380/579 [00:02<00:01, 148.88it/s]Loading weights:  69%|██████▉   | 400/579 [00:02<00:01, 155.89it/s]Loading weights:  72%|███████▏  | 416/579 [00:02<00:01, 156.14it/s]Loading weights:  75%|███████▌  | 437/579 [00:03<00:00, 165.31it/s]Loading weights:  79%|███████▉  | 459/579 [00:03<00:00, 180.38it/s]Loading weights:  83%|████████▎ | 478/579 [00:03<00:00, 172.39it/s]Loading weights:  86%|████████▌ | 496/579 [00:03<00:00, 171.87it/s]Loading weights:  90%|████████▉ | 520/579 [00:03<00:00, 184.47it/s]Loading weights:  93%|█████████▎| 539/579 [00:03<00:00, 183.36it/s]Loading weights:  96%|█████████▋| 558/579 [00:03<00:00, 174.69it/s]Loading weights: 100%|██████████| 579/579 [00:03<00:00, 150.77it/s]
+/root/venv-gpu/lib/python3.12/site-packages/transformers/modeling_utils.py:3195: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+  warnings.warn(
+2026/11/21 05:58:30 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+2026/11/21 05:58:30 INFO mlflow.store.db.utils: Updating database tables
+2026/11/21 05:58:31 INFO mlflow.tracking.fluent: Experiment with name 'cloudvanguard-hf' does not exist. Creating a new experiment.
+2026-11-21 05:58:31,407 INFO training.eval.tracking: MLflow run 484c648c41f849f9b75cc5f5753fdb2b at sqlite:////workspace/run2/mlflow.db
+2026-11-21 05:58:31,424 INFO training.hf: Qwen/Qwen2.5-14B quant_bits=0 world=1 trainable=68812800/14838846464 (0.464%) weights_gpu=28434.1044921875 MB
+2026-11-21 05:58:33,310 INFO training.hf: step 0 loss 0.3452 1870 ms
+2026-11-21 05:58:45,433 INFO training.hf: step 10 loss 0.1396 1455 ms
+2026-11-21 05:58:55,975 INFO training.hf: step 20 loss 0.0941 1037 ms
+2026-11-21 05:59:07,609 INFO training.hf: step 30 loss 0.1306 1442 ms
+2026-11-21 05:59:18,250 INFO training.hf: step 40 loss 0.0452 1069 ms
+2026-11-21 05:59:29,853 INFO training.hf: step 50 loss 0.0283 915 ms
+2026-11-21 05:59:42,640 INFO training.hf: step 60 loss 0.1252 1648 ms
+2026-11-21 05:59:54,304 INFO training.hf: step 70 loss 0.0381 1534 ms
+2026-11-21 06:00:05,422 INFO training.hf: step 80 loss 0.3892 1070 ms
+2026-11-21 06:00:16,755 INFO training.hf: step 90 loss 0.1452 1034 ms
+2026-11-21 06:00:31,087 INFO training.hf: step 100 loss 0.0506 1365 ms
+2026-11-21 06:00:42,305 INFO training.hf: step 110 loss 0.0641 1087 ms
+2026-11-21 06:00:53,655 INFO training.hf: step 120 loss 0.0734 1061 ms
+2026-11-21 06:01:05,657 INFO training.hf: step 130 loss 0.0276 1322 ms
+2026-11-21 06:01:16,958 INFO training.hf: step 140 loss 0.2019 904 ms
+2026-11-21 06:01:28,544 INFO training.hf: step 150 loss 0.4010 1338 ms
+2026-11-21 06:01:40,739 INFO training.hf: step 160 loss 0.1860 994 ms
+2026-11-21 06:01:51,418 INFO training.hf: step 170 loss 0.0223 911 ms
+2026-11-21 06:02:03,366 INFO training.hf: step 180 loss 0.0928 921 ms
+2026-11-21 06:02:14,158 INFO training.hf: step 190 loss 0.1558 924 ms
+2026-11-21 06:02:26,025 INFO training.hf: step 200 loss 0.0780 1164 ms
+2026-11-21 06:02:37,790 INFO training.hf: step 210 loss 0.1400 1160 ms
+2026-11-21 06:02:48,805 INFO training.hf: step 220 loss 0.1027 1153 ms
+2026-11-21 06:03:01,274 INFO training.hf: step 230 loss 0.0979 1138 ms
+2026-11-21 06:03:12,058 INFO training.hf: step 240 loss 0.0926 926 ms
+2026-11-21 06:03:21,910 INFO training.hf: step 249 loss 0.1242 1159 ms
+{
+  "model": "Qwen/Qwen2.5-14B",
+  "quant_bits": 0,
+  "dtype": "bf16",
+  "precision": "bf16",
+  "device": "cuda",
+  "world_size": 1,
+  "steps": 250,
+  "batch_size_per_rank": 16,
+  "grad_accum": 1,
+  "global_batch": 16,
+  "max_len": 256,
+  "gradient_checkpointing": true,
+  "lora_r": 16,
+  "hf_model": "Qwen/Qwen2.5-14B",
+  "load_s": 6.436640357947908,
+  "total_params_base": 14770033664,
+  "lora_modules": 336,
+  "trainable_params": 68812800,
+  "total_params": 14838846464,
+  "weight_bytes": 29815319040,
+  "weights_gpu_mb": 28434.1044921875,
+  "load_peak_allocated_mb": 28434.1044921875,
+  "trainable_pct": 0.4637341599762778,
+  "first_loss": 0.34520459175109863,
+  "final_loss_mean_last10": 0.10925889499485493,
+  "tokens_seen": 318160.0,
+  "train_s": 290.48110779200215,
+  "throughput_tokens_per_s": 1099.012265986108,
+  "step_ms": {
+    "p50": 1067.3651639954187,
+    "p95": 1736.209141323343
+  },
+  "peak_allocated_mb": 37411.74658203125,
+  "peak_reserved_mb": 72536.0,
+  "peak_allocated_mb_max_rank": 37411.74658203125,
+  "nvml": {},
+  "gpu_name": "NVIDIA A100-SXM4-80GB",
+  "torch_version": "2.15.0+cu132",
+  "adapter_dir": "/workspace/run2/runs/lora_bf16/adapter",
+  "adapter_bytes": 275342254,
+  "mlflow_run_id": "484c648c41f849f9b75cc5f5753fdb2b",
+  "eval": {
+    "backend": "hf",
+    "examples": 500,
+    "exact_match": 0.924,
+    "perplexity": 1.1246934263631028,
+    "mean_nll": 0.11751048861934957,
+    "scored_tokens": 1270,
+    "latency_ms": {
+      "p50": 138.68845102842897,
+      "p95": 264.3528508138843,
+      "p99": 266.0553614475066,
+      "mean": 173.4644811282633
+    },
+    "generated_tokens_per_s": 14.7811239702964
+  }
+}

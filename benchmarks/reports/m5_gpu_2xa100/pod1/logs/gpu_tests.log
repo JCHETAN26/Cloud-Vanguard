@@ -1,0 +1,31 @@
+...........................s......................s..........            [100%]
+=============================== warnings summary ===============================
+tests/test_cli_e2e.py::test_lora_run_outputs_summary_adapter_and_mlflow
+  /workspace/Cloud-Vanguard/.venv-gpu/lib/python3.12/site-packages/mlflow/store/tracking/sqlalchemy_store.py:356: SADeprecationWarning: The ``noload`` loader strategy is deprecated and will be removed in a future release.  This option produces incorrect results by returning ``None`` for related items. (deprecated since: 2.1)
+    sqlalchemy.orm.configure_mappers()
+
+tests/test_data.py::test_worker_prefetching_loader_matches_in_process_loader
+tests/test_data.py::test_worker_prefetching_loader_matches_in_process_loader
+  /usr/lib/python3.12/multiprocessing/popen_fork.py:66: DeprecationWarning: This process (pid=2928) is multi-threaded, use of fork() may lead to deadlocks in the child.
+    self.pid = os.fork()
+
+tests/test_hf.py::test_lora_trains_saves_and_loads_in_peft
+tests/test_hf.py::test_learns_the_task
+tests/test_hf.py::test_qlora_nf4_portable_backend
+  /workspace/Cloud-Vanguard/.venv-gpu/lib/python3.12/site-packages/transformers/modeling_utils.py:3195: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+    warnings.warn(
+
+tests/test_quant.py::test_int8_per_channel_round_trip
+  /workspace/Cloud-Vanguard/training/tests/test_quant.py:11: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+  Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+    return float((a - b).norm() / b.norm())
+
+tests/test_quant.py::test_bitsandbytes_backend[4]
+  /workspace/Cloud-Vanguard/.venv-gpu/lib/python3.12/site-packages/bitsandbytes/backends/cuda/ops.py:957: UserWarning: inner dimension (32) is not aligned for fast kernel with blocksize=64, falling back to slower implementation.
+    warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] training/tests/test_eval.py:102: vLLM needs the vllm package and a CUDA GPU; not available here
+SKIPPED [1] training/tests/test_quant.py:69: bitsandbytes + CUDA present
+59 passed, 2 skipped, 8 warnings in 822.48s (0:13:42)

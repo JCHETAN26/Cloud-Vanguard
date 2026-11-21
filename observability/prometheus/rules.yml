@@ -1,4 +1,4 @@
-# Recording and alerting rules over vanguard-proxy's /metrics.
+# Recording and alerting rules over vanguard-proxy's /metrics and observability/gpu_exporter.py.
 # Validated by `promtool check rules` (observability/scripts/verify-prometheus.sh).
 groups:
   - name: vanguard.recording
@@ -51,3 +51,36 @@ groups:
         annotations:
           summary: "Spans dropped or rejected by the OTLP endpoint on {{ $labels.instance }}"
           description: Check the collector's health or raise OTEL_BSP_MAX_QUEUE_SIZE / lower the sampling ratio.
+
+  - name: gpu.recording
+    rules:
+      - record: cloudvanguard:gpu_memory_used_ratio
+        expr: cloudvanguard_gpu_memory_used_bytes / cloudvanguard_gpu_memory_total_bytes
+      - record: cloudvanguard:gpu_utilization_ratio:avg1m
+        expr: avg_over_time(cloudvanguard_gpu_utilization_ratio[1m])
+
+  - name: gpu.alerts
+    rules:
+      - alert: GPUMemoryNearFull
+        expr: cloudvanguard:gpu_memory_used_ratio > 0.95
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU {{ $labels.gpu }} ({{ $labels.name }}) memory above 95% for 5 minutes on {{ $labels.instance }}"
+          description: The next allocation spike (longer batch, eval generation) is likely to OOM.
+      - alert: GPUIdleWhileAllocated
+        expr: cloudvanguard:gpu_utilization_ratio:avg1m < 0.05 and cloudvanguard:gpu_memory_used_ratio > 0.5
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "GPU {{ $labels.gpu }} holds memory but has been idle for 15 minutes on {{ $labels.instance }}"
+          description: A stalled job (data loader, collective waiting on a dead rank) or a leaked process.
+      - alert: GPUExporterDown
+        expr: cloudvanguard_gpu_up == 0 or up{job=~"gpu.*"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No GPU telemetry from {{ $labels.instance }}"

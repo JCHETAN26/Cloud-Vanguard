@@ -14,6 +14,12 @@ scrape_configs:
     static_configs:
       - targets: ["127.0.0.1:8080"]
 
+  # GPU hosts: observability/gpu_exporter.py (NVML). On Kubernetes, NVIDIA's dcgm-exporter plays this role.
+  - job_name: gpu-local
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["127.0.0.1:9400"]
+
   # Kubernetes: pods rendered by the CacheCluster operator carry
   # app.kubernetes.io/name=vanguard-proxy and a container port named "http".
   - job_name: vanguard-kubernetes

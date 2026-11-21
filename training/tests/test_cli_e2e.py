@@ -47,7 +47,10 @@ def test_prepare_data_writes_arrow(pipeline):
 
 def test_lora_run_outputs_summary_adapter_and_mlflow(pipeline):
     s = json.loads((pipeline / "lora/train_summary.json").read_text())
-    assert s["mode"] == "lora" and s["world_size"] == 1 and s["precision"] == "fp32"
+    # precision "auto" resolves per device: bf16/fp16 on a CUDA GPU, fp32 on CPU.
+    import torch
+    expected = ("bf16" if torch.cuda.is_bf16_supported() else "fp16") if torch.cuda.is_available() else "fp32"
+    assert s["mode"] == "lora" and s["world_size"] == 1 and s["precision"] == expected
     assert 0 < s["trainable_pct"] < 20
     assert s["final_loss_mean_last10"] < s["first_loss"]
     assert s["throughput_tokens_per_s"] > 0 and s["step_ms"]["p50"] > 0 and s["peak_rss_mb"] > 0

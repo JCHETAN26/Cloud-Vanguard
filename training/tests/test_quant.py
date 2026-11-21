@@ -53,7 +53,11 @@ def test_quantize_model_freezes_and_skips_lm_head(small_model):
     backend = quantize_model(small_model, 8, backend="auto")
     assert backend == ("bnb" if bnb_available() else "torch")
     assert isinstance(small_model.lm_head, nn.Linear)
-    assert isinstance(small_model.layers[0].mlp.up_proj, Int8Linear)
+    if backend == "bnb":  # bitsandbytes swaps in its own LLM.int8() layer
+        import bitsandbytes as bnb
+        assert isinstance(small_model.layers[0].mlp.up_proj, bnb.nn.Linear8bitLt)
+    else:
+        assert isinstance(small_model.layers[0].mlp.up_proj, Int8Linear)
     assert not any(p.requires_grad for p in small_model.parameters())
     assert weight_bytes(small_model) < before
     with pytest.raises(ValueError):

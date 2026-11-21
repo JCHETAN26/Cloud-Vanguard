@@ -1,0 +1,172 @@
+
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+2026-11-21 06:05:36,357 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-21 06:05:36,414 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-11-21 06:05:36,418 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-21 06:05:36,467 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-11-21 06:05:36,476 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-11-21 06:05:36,532 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-11-21 06:05:36,780 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-21 06:05:36,833 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-21 06:05:36,888 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-21 06:05:36,945 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+Loading weights:   0%|          | 0/579 [00:00<?, ?it/s]Loading weights: 100%|██████████| 579/579 [00:00<00:00, 7488.40it/s]
+Loading weights:   0%|          | 0/579 [00:00<?, ?it/s]Loading weights: 100%|██████████| 579/579 [00:00<00:00, 7472.34it/s]
+2026-11-21 06:07:01,329 INFO training.models.quant: quantized 336 linear layers to 4-bit with the bnb backend
+/root/venv-gpu/lib/python3.12/site-packages/transformers/modeling_utils.py:3195: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+  warnings.warn(
+/workspace/Cloud-Vanguard/training/hf/train.py:109: FutureWarning: `broadcast_buffers` is deprecated. Use `forward_sync_buffers` instead. IMPORTANT: unlike `broadcast_buffers=False`, `forward_sync_buffers=False` still syncs buffers at init. If you rely on buffers NOT being synced at init (e.g. rank-local buffers), keep using `broadcast_buffers=False` until `init_sync_buffers` is available.
+  return DDP(model, device_ids=ids, broadcast_buffers=False)
+2026-11-21 06:07:03,897 INFO training.models.quant: quantized 336 linear layers to 4-bit with the bnb backend
+/root/venv-gpu/lib/python3.12/site-packages/transformers/modeling_utils.py:3195: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+  warnings.warn(
+/workspace/Cloud-Vanguard/training/hf/train.py:109: FutureWarning: `broadcast_buffers` is deprecated. Use `forward_sync_buffers` instead. IMPORTANT: unlike `broadcast_buffers=False`, `forward_sync_buffers=False` still syncs buffers at init. If you rely on buffers NOT being synced at init (e.g. rank-local buffers), keep using `broadcast_buffers=False` until `init_sync_buffers` is available.
+  return DDP(model, device_ids=ids, broadcast_buffers=False)
+2026-11-21 06:07:07,201 INFO training.eval.tracking: MLflow run fd6f819b7d7f4e738b851a163c41a8a9 at sqlite:////workspace/run2/mlflow.db
+2026-11-21 06:07:07,220 INFO training.hf: Qwen/Qwen2.5-14B quant_bits=4 world=2 trainable=68812800/8232817664 (0.836%) weights_gpu=9813.55078125 MB
+2026-11-21 06:07:08,621 INFO training.hf: step 0 loss 0.4877 1384 ms
+2026-11-21 06:07:16,249 INFO training.hf: step 10 loss 0.2450 1052 ms
+2026-11-21 06:07:23,197 INFO training.hf: step 20 loss 0.0435 666 ms
+2026-11-21 06:07:30,890 INFO training.hf: step 30 loss 0.2427 832 ms
+2026-11-21 06:07:37,819 INFO training.hf: step 40 loss 0.0241 675 ms
+2026-11-21 06:07:45,280 INFO training.hf: step 50 loss 0.0375 631 ms
+2026-11-21 06:07:53,271 INFO training.hf: step 60 loss 0.0383 982 ms
+2026-11-21 06:08:00,964 INFO training.hf: step 70 loss 0.0914 957 ms
+2026-11-21 06:08:08,297 INFO training.hf: step 80 loss 0.2070 676 ms
+2026-11-21 06:08:15,609 INFO training.hf: step 90 loss 0.0768 666 ms
+2026-11-21 06:08:24,321 INFO training.hf: step 100 loss 0.0259 806 ms
+2026-11-21 06:08:31,483 INFO training.hf: step 110 loss 0.1439 617 ms
+2026-11-21 06:08:39,089 INFO training.hf: step 120 loss 0.0049 673 ms
+2026-11-21 06:08:46,864 INFO training.hf: step 130 loss 0.0136 1022 ms
+2026-11-21 06:08:54,082 INFO training.hf: step 140 loss 0.0521 633 ms
+2026-11-21 06:09:01,711 INFO training.hf: step 150 loss 0.1972 800 ms
+2026-11-21 06:09:09,363 INFO training.hf: step 160 loss 0.3884 658 ms
+2026-11-21 06:09:16,657 INFO training.hf: step 170 loss 0.0246 621 ms
+2026-11-21 06:09:24,319 INFO training.hf: step 180 loss 0.0702 625 ms
+2026-11-21 06:09:31,365 INFO training.hf: step 190 loss 0.2081 615 ms
+2026-11-21 06:09:39,154 INFO training.hf: step 200 loss 0.1127 714 ms
+2026-11-21 06:09:46,635 INFO training.hf: step 210 loss 0.1139 714 ms
+2026-11-21 06:09:54,012 INFO training.hf: step 220 loss 0.1910 659 ms
+2026-11-21 06:10:01,783 INFO training.hf: step 230 loss 0.1918 833 ms
+2026-11-21 06:10:08,830 INFO training.hf: step 240 loss 0.1783 620 ms
+2026-11-21 06:10:15,213 INFO training.hf: step 249 loss 0.0213 713 ms
+{
+  "model": "Qwen/Qwen2.5-14B",
+  "quant_bits": 4,
+  "dtype": "bf16",
+  "precision": "bf16",
+  "device": "cuda:0",
+  "world_size": 2,
+  "steps": 250,
+  "batch_size_per_rank": 8,
+  "grad_accum": 1,
+  "global_batch": 16,
+  "max_len": 256,
+  "gradient_checkpointing": true,
+  "lora_r": 16,
+  "hf_model": "Qwen/Qwen2.5-14B",
+  "load_s": 87.85744700900977,
+  "total_params_base": 14770033664,
+  "quant_backend": "bnb",
+  "lora_modules": 336,
+  "trainable_params": 68812800,
+  "total_params": 8232817664,
+  "weight_bytes": 9997232640,
+  "weights_gpu_mb": 9813.55078125,
+  "load_peak_allocated_mb": 9813.55078125,
+  "trainable_pct": 0.8358353459095872,
+  "first_loss": 0.4876523017883301,
+  "final_loss_mean_last10": 0.10841453317552804,
+  "tokens_seen": 318160.0,
+  "train_s": 187.98757671698695,
+  "throughput_tokens_per_s": 1697.9956948409779,
+  "step_ms": {
+    "p50": 691.0164469736628,
+    "p95": 1015.0651066738646
+  },
+  "peak_allocated_mb": 14827.478515625,
+  "peak_reserved_mb": 25666.0,
+  "peak_allocated_mb_max_rank": 14827.478515625,
+  "nvml": {
+    "0": {
+      "name": "NVIDIA A100-SXM4-80GB",
+      "memory_total_mb": 81920.0,
+      "peak_memory_used_mb": 27578.0625,
+      "mean_utilization_pct": 94.76407506702412,
+      "samples": 746
+    }
+  },
+  "gpu_name": "NVIDIA A100-SXM4-80GB",
+  "torch_version": "2.15.0+cu132",
+  "nvml_peak_memory_used_mb_max_rank": 28216.0625,
+  "adapter_dir": "/workspace/run2/runs/ddp_qlora_nf4/adapter",
+  "adapter_bytes": 275342254,
+  "mlflow_run_id": "fd6f819b7d7f4e738b851a163c41a8a9",
+  "eval": {
+    "backend": "hf",
+    "examples": 500,
+    "exact_match": 0.92,
+    "perplexity": 1.1237201068832245,
+    "mean_nll": 0.11664470523361146,
+    "scored_tokens": 1270,
+    "latency_ms": {
+      "p50": 211.65199048118666,
+      "p95": 389.51553435472306,
+      "p99": 397.15370282996446,
+      "mean": 260.28806995227933
+    },
+    "generated_tokens_per_s": 9.83525676174611
+  }
+}
+{
+  "model": "Qwen/Qwen2.5-14B",
+  "quant_bits": 4,
+  "dtype": "bf16",
+  "precision": "bf16",
+  "device": "cuda:1",
+  "world_size": 2,
+  "steps": 250,
+  "batch_size_per_rank": 8,
+  "grad_accum": 1,
+  "global_batch": 16,
+  "max_len": 256,
+  "gradient_checkpointing": true,
+  "lora_r": 16,
+  "hf_model": "Qwen/Qwen2.5-14B",
+  "load_s": 85.31824492599117,
+  "total_params_base": 14770033664,
+  "quant_backend": "bnb",
+  "lora_modules": 336,
+  "trainable_params": 68812800,
+  "total_params": 8232817664,
+  "weight_bytes": 9997232640,
+  "weights_gpu_mb": 9813.55078125,
+  "load_peak_allocated_mb": 9813.55078125,
+  "trainable_pct": 0.8358353459095872,
+  "first_loss": 0.4424702227115631,
+  "final_loss_mean_last10": 0.12032480780035257,
+  "tokens_seen": 318160.0,
+  "train_s": 189.85421115602367,
+  "throughput_tokens_per_s": 1697.9956948409779,
+  "step_ms": {
+    "p50": 691.6136240470223,
+    "p95": 1016.121372586349
+  },
+  "peak_allocated_mb": 14258.73876953125,
+  "peak_reserved_mb": 26304.0,
+  "peak_allocated_mb_max_rank": 14827.478515625,
+  "nvml": {
+    "1": {
+      "name": "NVIDIA A100-SXM4-80GB",
+      "memory_total_mb": 81920.0,
+      "peak_memory_used_mb": 28216.0625,
+      "mean_utilization_pct": 95.4515272244356,
+      "samples": 753
+    }
+  },
+  "gpu_name": "NVIDIA A100-SXM4-80GB",
+  "torch_version": "2.15.0+cu132",
+  "nvml_peak_memory_used_mb_max_rank": 28216.0625
+}

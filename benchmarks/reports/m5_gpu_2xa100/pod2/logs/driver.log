@@ -1,0 +1,16 @@
+[05:53:04] model=Qwen/Qwen2.5-14B gpus=2 out=/workspace/run2 stages: setup data download lora_bf16 ddp_qlora_nf4 vllm_eval
+[05:53:04] == setup
+[05:57:54]    ok (290 s)
+[05:57:58]    promtool check config (GPU scrape + rules.yml): ok
+[05:57:58]    gpu_exporter /metrics: promtool check metrics clean
+[05:57:58] == data
+[05:58:05]    ok (7 s)
+[05:58:05] == download
+[05:58:18]    ok (13 s)
+[05:58:18] == lora_bf16
+[06:05:31]    ok (433 s)
+[06:05:31] == ddp_qlora_nf4
+[06:13:33]    ok (482 s)
+[06:13:33] == vllm_eval
+[06:16:45]    ok (192 s)
+[06:16:48] done: /workspace/run2/summary.md

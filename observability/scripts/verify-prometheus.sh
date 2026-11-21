@@ -2,6 +2,8 @@
 # Validates the Prometheus side with the real promtool:
 #   promtool check config  observability/prometheus/prometheus.yml (+ rules.yml)
 #   promtool check rules   observability/prometheus/rules.yml
+#   promtool test rules    observability/prometheus/gpu_rules_test.yml (GPU alerts on synthetic series)
+#   promtool check metrics on gpu_exporter.py output (fixed readings; no GPU needed)
 #   promtool check metrics on a live vanguard-proxy /metrics scrape
 # Usage: verify-prometheus.sh <path/to/vanguard-proxy>     (Linux)
 set -euo pipefail
@@ -17,6 +19,15 @@ FAIL=0
 echo "== $("$PROMTOOL" --version | head -1)"
 "$PROMTOOL" check config "$OBS/prometheus/prometheus.yml" || FAIL=1
 "$PROMTOOL" check rules "$OBS/prometheus/rules.yml" || FAIL=1
+"$PROMTOOL" check config "$ROOT/benchmarks/gpu/prometheus-gpu.yml" || FAIL=1
+"$PROMTOOL" test rules "$OBS/prometheus/gpu_rules_test.yml" || FAIL=1
+echo "== promtool check metrics (gpu_exporter.py rendering, fixed readings)"
+python3 - "$OBS" <<'PY' | "$PROMTOOL" check metrics && echo "  [PASS] gpu_exporter output lints clean" || { echo "  [FAIL] gpu_exporter output"; FAIL=1; }
+import sys; sys.path.insert(0, sys.argv[1]); import gpu_exporter as g
+print(g.render([{"index": 0, "name": "NVIDIA A100-SXM4-80GB", "uuid": "GPU-0", "memory_used_bytes": 3.2e10,
+                 "memory_total_bytes": 8.5e10, "utilization_ratio": 0.97, "memory_bandwidth_utilization_ratio": 0.5,
+                 "power_watts": 390.5, "temperature_celsius": 61, "processes": {1234: 3.1e10}}]), end="")
+PY
 
 UP_PORT=19490; PX_PORT=18490
 python3 "$ROOT/benchmarks/mock_upstream.py" --port $UP_PORT --min-latency-ms 1 --max-latency-ms 2 >/dev/null 2>&1 & PIDS+=($!)

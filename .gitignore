@@ -30,3 +30,7 @@ runs/
 mlruns/
 mlflow.db
 *.egg-info/
+
+# GPU benchmark virtualenvs
+.venv-gpu/
+.venv-vllm/

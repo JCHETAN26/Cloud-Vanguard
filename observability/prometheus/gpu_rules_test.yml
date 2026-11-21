@@ -1,0 +1,70 @@
+# promtool test rules observability/prometheus/gpu_rules_test.yml
+# Synthetic GPU series against the gpu.* groups in rules.yml.
+rule_files:
+  - rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  # GPU 0 sits at 96% memory (fires after 5m); GPU 1 at 50% (never fires).
+  - interval: 1m
+    input_series:
+      - series: 'cloudvanguard_gpu_memory_used_bytes{job="gpu-local",instance="h:9400",gpu="0",name="A100"}'
+        values: '76800000000x10'
+      - series: 'cloudvanguard_gpu_memory_total_bytes{job="gpu-local",instance="h:9400",gpu="0",name="A100"}'
+        values: '80000000000x10'
+      - series: 'cloudvanguard_gpu_memory_used_bytes{job="gpu-local",instance="h:9400",gpu="1",name="A100"}'
+        values: '40000000000x10'
+      - series: 'cloudvanguard_gpu_memory_total_bytes{job="gpu-local",instance="h:9400",gpu="1",name="A100"}'
+        values: '80000000000x10'
+    promql_expr_test:
+      - expr: cloudvanguard:gpu_memory_used_ratio{gpu="0"}
+        eval_time: 1m
+        exp_samples:
+          - labels: 'cloudvanguard:gpu_memory_used_ratio{job="gpu-local",instance="h:9400",gpu="0",name="A100"}'
+            value: 0.96
+    alert_rule_test:
+      - alertname: GPUMemoryNearFull
+        eval_time: 4m
+        exp_alerts: []
+      - alertname: GPUMemoryNearFull
+        eval_time: 6m
+        exp_alerts:
+          - exp_labels: {severity: warning, job: gpu-local, instance: "h:9400", gpu: "0", name: A100}
+            exp_annotations:
+              summary: "GPU 0 (A100) memory above 95% for 5 minutes on h:9400"
+              description: The next allocation spike (longer batch, eval generation) is likely to OOM.
+
+  # Memory held at 60% with 0% utilization for 20 minutes: a stalled job.
+  - interval: 1m
+    input_series:
+      - series: 'cloudvanguard_gpu_memory_used_bytes{instance="h:9400",gpu="0",name="A100"}'
+        values: '48000000000x25'
+      - series: 'cloudvanguard_gpu_memory_total_bytes{instance="h:9400",gpu="0",name="A100"}'
+        values: '80000000000x25'
+      - series: 'cloudvanguard_gpu_utilization_ratio{instance="h:9400",gpu="0",name="A100"}'
+        values: '0x25'
+    alert_rule_test:
+      - alertname: GPUIdleWhileAllocated
+        eval_time: 10m
+        exp_alerts: []
+      - alertname: GPUIdleWhileAllocated
+        eval_time: 20m
+        exp_alerts:
+          - exp_labels: {severity: info, instance: "h:9400", gpu: "0", name: A100}
+            exp_annotations:
+              summary: "GPU 0 holds memory but has been idle for 15 minutes on h:9400"
+              description: A stalled job (data loader, collective waiting on a dead rank) or a leaked process.
+
+  # Exporter reachable but NVML failing.
+  - interval: 1m
+    input_series:
+      - series: 'cloudvanguard_gpu_up{job="gpu-local",instance="h:9400"}'
+        values: '0x5'
+    alert_rule_test:
+      - alertname: GPUExporterDown
+        eval_time: 3m
+        exp_alerts:
+          - exp_labels: {severity: warning, job: gpu-local, instance: "h:9400"}
+            exp_annotations:
+              summary: "No GPU telemetry from h:9400"

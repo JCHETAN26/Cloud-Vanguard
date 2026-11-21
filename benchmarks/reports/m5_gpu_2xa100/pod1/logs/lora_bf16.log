@@ -1,0 +1,97 @@
+2026-11-20 21:59:13,774 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-20 21:59:14,020 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-11-20 21:59:14,124 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-11-20 21:59:14,489 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-20 21:59:14,545 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+Loading weights:   0%|          | 0/579 [00:00<?, ?it/s]Loading weights:   0%|          | 1/579 [00:00<01:30,  6.42it/s]Loading weights:   0%|          | 2/579 [00:00<01:51,  5.18it/s]Loading weights:   3%|▎         | 16/579 [00:00<00:12, 44.37it/s]Loading weights:   5%|▍         | 28/579 [00:00<00:08, 65.10it/s]Loading weights:   6%|▋         | 37/579 [00:00<00:07, 71.20it/s]Loading weights:   8%|▊         | 46/579 [00:00<00:07, 68.20it/s]Loading weights:   9%|▉         | 54/579 [00:00<00:07, 69.88it/s]Loading weights:  11%|█         | 65/579 [00:01<00:06, 77.89it/s]Loading weights:  13%|█▎        | 77/579 [00:01<00:06, 78.98it/s]Loading weights:  15%|█▌        | 88/579 [00:01<00:06, 80.66it/s]Loading weights:  17%|█▋        | 97/579 [00:01<00:05, 82.25it/s]Loading weights:  18%|█▊        | 106/579 [00:01<00:06, 77.06it/s]Loading weights:  20%|█▉        | 114/579 [00:01<00:06, 68.64it/s]Loading weights:  22%|██▏       | 125/579 [00:01<00:05, 75.67it/s]Loading weights:  23%|██▎       | 136/579 [00:01<00:05, 80.05it/s]Loading weights:  25%|██▌       | 145/579 [00:02<00:05, 78.41it/s]Loading weights:  26%|██▋       | 153/579 [00:02<00:05, 72.86it/s]Loading weights:  28%|██▊       | 161/579 [00:02<00:05, 71.32it/s]Loading weights:  30%|██▉       | 172/579 [00:02<00:05, 76.82it/s]Loading weights:  31%|███       | 180/579 [00:02<00:05, 73.88it/s]Loading weights:  32%|███▏      | 188/579 [00:02<00:05, 69.92it/s]Loading weights:  34%|███▍      | 197/579 [00:02<00:05, 71.80it/s]Loading weights:  36%|███▌      | 208/579 [00:02<00:04, 77.33it/s]Loading weights:  37%|███▋      | 216/579 [00:03<00:04, 74.26it/s]Loading weights:  39%|███▊      | 224/579 [00:03<00:05, 70.17it/s]Loading weights:  40%|████      | 232/579 [00:03<00:05, 68.54it/s]Loading weights:  42%|████▏     | 244/579 [00:03<00:04, 76.63it/s]Loading weights:  44%|████▎     | 252/579 [00:03<00:04, 73.21it/s]Loading weights:  45%|████▍     | 260/579 [00:03<00:04, 69.28it/s]Loading weights:  46%|████▋     | 269/579 [00:03<00:04, 70.40it/s]Loading weights:  48%|████▊     | 280/579 [00:03<00:03, 75.61it/s]Loading weights:  50%|████▉     | 288/579 [00:04<00:03, 73.03it/s]Loading weights:  51%|█████     | 296/579 [00:04<00:04, 69.56it/s]Loading weights:  53%|█████▎    | 304/579 [00:04<00:04, 68.48it/s]Loading weights:  55%|█████▍    | 316/579 [00:04<00:03, 77.02it/s]Loading weights:  56%|█████▌    | 324/579 [00:04<00:03, 73.99it/s]Loading weights:  57%|█████▋    | 332/579 [00:04<00:03, 69.99it/s]Loading weights:  59%|█████▊    | 340/579 [00:04<00:03, 67.83it/s]Loading weights:  61%|██████    | 352/579 [00:04<00:03, 75.24it/s]Loading weights:  62%|██████▏   | 360/579 [00:05<00:03, 72.28it/s]Loading weights:  64%|██████▎   | 368/579 [00:05<00:03, 67.66it/s]Loading weights:  65%|██████▍   | 376/579 [00:05<00:03, 66.45it/s]Loading weights:  67%|██████▋   | 388/579 [00:05<00:02, 74.52it/s]Loading weights:  68%|██████▊   | 396/579 [00:05<00:02, 71.28it/s]Loading weights:  70%|██████▉   | 404/579 [00:05<00:02, 67.46it/s]Loading weights:  71%|███████▏  | 413/579 [00:05<00:02, 68.97it/s]Loading weights:  73%|███████▎  | 424/579 [00:05<00:02, 74.13it/s]Loading weights:  75%|███████▍  | 432/579 [00:06<00:02, 69.78it/s]Loading weights:  76%|███████▌  | 439/579 [00:06<00:02, 63.56it/s]Loading weights:  78%|███████▊  | 449/579 [00:06<00:01, 68.48it/s]Loading weights:  79%|███████▉  | 460/579 [00:06<00:01, 67.40it/s]Loading weights:  82%|████████▏ | 472/579 [00:06<00:01, 75.41it/s]Loading weights:  83%|████████▎ | 480/579 [00:06<00:01, 72.21it/s]Loading weights:  84%|████████▍ | 488/579 [00:06<00:01, 67.94it/s]Loading weights:  86%|████████▌ | 497/579 [00:07<00:01, 69.41it/s]Loading weights:  88%|████████▊ | 508/579 [00:07<00:00, 74.96it/s]Loading weights:  89%|████████▉ | 516/579 [00:07<00:00, 72.15it/s]Loading weights:  91%|█████████ | 524/579 [00:07<00:00, 68.76it/s]Loading weights:  92%|█████████▏| 533/579 [00:07<00:00, 70.24it/s]Loading weights:  94%|█████████▍| 544/579 [00:07<00:00, 68.91it/s]Loading weights:  96%|█████████▌| 556/579 [00:07<00:00, 76.39it/s]Loading weights:  97%|█████████▋| 564/579 [00:07<00:00, 73.05it/s]Loading weights:  99%|█████████▉| 572/579 [00:08<00:00, 68.16it/s]Loading weights: 100%|██████████| 579/579 [00:08<00:00, 70.97it/s]
+/workspace/Cloud-Vanguard/.venv-gpu/lib/python3.12/site-packages/transformers/modeling_utils.py:3195: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+  warnings.warn(
+2026/11/20 22:00:19 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+2026/11/20 22:00:19 INFO mlflow.store.db.utils: Updating database tables
+2026/11/20 22:00:37 INFO mlflow.tracking.fluent: Experiment with name 'cloudvanguard-hf' does not exist. Creating a new experiment.
+2026-11-20 22:00:39,017 INFO training.eval.tracking: MLflow run ae4370426dfc40098d0653a497cbe077 at sqlite:////workspace/Cloud-Vanguard/benchmarks/results/gpu/run1/mlflow.db
+2026-11-20 22:00:39,385 INFO training.hf: Qwen/Qwen2.5-14B quant_bits=0 world=1 trainable=68812800/14838846464 (0.464%) weights_gpu=28434.1044921875 MB
+2026-11-20 22:00:41,160 INFO training.hf: step 0 loss 0.3452 1694 ms
+2026-11-20 22:00:53,328 INFO training.hf: step 10 loss 0.1396 1453 ms
+2026-11-20 22:01:03,890 INFO training.hf: step 20 loss 0.0941 1033 ms
+2026-11-20 22:01:15,716 INFO training.hf: step 30 loss 0.1306 1437 ms
+2026-11-20 22:01:26,246 INFO training.hf: step 40 loss 0.0452 1063 ms
+2026-11-20 22:01:37,875 INFO training.hf: step 50 loss 0.0283 909 ms
+2026-11-20 22:01:50,685 INFO training.hf: step 60 loss 0.1252 1641 ms
+2026-11-20 22:02:02,294 INFO training.hf: step 70 loss 0.0381 1528 ms
+2026-11-20 22:02:13,391 INFO training.hf: step 80 loss 0.3892 1064 ms
+2026-11-20 22:02:24,733 INFO training.hf: step 90 loss 0.1452 1029 ms
+2026-11-20 22:02:39,131 INFO training.hf: step 100 loss 0.0506 1359 ms
+2026-11-20 22:02:50,387 INFO training.hf: step 110 loss 0.0641 921 ms
+2026-11-20 22:03:01,758 INFO training.hf: step 120 loss 0.0734 1056 ms
+2026-11-20 22:03:13,723 INFO training.hf: step 130 loss 0.0276 1317 ms
+2026-11-20 22:03:25,178 INFO training.hf: step 140 loss 0.2019 901 ms
+2026-11-20 22:03:36,629 INFO training.hf: step 150 loss 0.4010 1331 ms
+2026-11-20 22:03:48,789 INFO training.hf: step 160 loss 0.1860 986 ms
+2026-11-20 22:03:59,496 INFO training.hf: step 170 loss 0.0223 904 ms
+2026-11-20 22:04:11,376 INFO training.hf: step 180 loss 0.0928 913 ms
+2026-11-20 22:04:22,171 INFO training.hf: step 190 loss 0.1558 917 ms
+2026-11-20 22:04:34,028 INFO training.hf: step 200 loss 0.0780 1158 ms
+2026-11-20 22:04:45,770 INFO training.hf: step 210 loss 0.1400 1155 ms
+2026-11-20 22:04:56,787 INFO training.hf: step 220 loss 0.1027 1120 ms
+2026-11-20 22:05:09,285 INFO training.hf: step 230 loss 0.0979 1135 ms
+2026-11-20 22:05:20,080 INFO training.hf: step 240 loss 0.0926 921 ms
+2026-11-20 22:05:29,970 INFO training.hf: step 249 loss 0.1242 1154 ms
+{
+  "model": "Qwen/Qwen2.5-14B",
+  "quant_bits": 0,
+  "dtype": "bf16",
+  "precision": "bf16",
+  "device": "cuda",
+  "world_size": 1,
+  "steps": 250,
+  "batch_size_per_rank": 16,
+  "grad_accum": 1,
+  "global_batch": 16,
+  "max_len": 256,
+  "gradient_checkpointing": true,
+  "lora_r": 16,
+  "hf_model": "Qwen/Qwen2.5-14B",
+  "load_s": 35.98511563404463,
+  "total_params_base": 14770033664,
+  "lora_modules": 336,
+  "trainable_params": 68812800,
+  "total_params": 14838846464,
+  "weight_bytes": 29815319040,
+  "weights_gpu_mb": 28434.1044921875,
+  "load_peak_allocated_mb": 28434.1044921875,
+  "trainable_pct": 0.4637341599762778,
+  "first_loss": 0.34520459175109863,
+  "final_loss_mean_last10": 0.10925889499485493,
+  "tokens_seen": 318160.0,
+  "train_s": 290.5709525810089,
+  "throughput_tokens_per_s": 1104.9978061155675,
+  "step_ms": {
+    "p50": 1063.1325910217129,
+    "p95": 1726.894624880515
+  },
+  "peak_allocated_mb": 37411.74658203125,
+  "peak_reserved_mb": 72536.0,
+  "peak_allocated_mb_max_rank": 37411.74658203125,
+  "nvml": {},
+  "gpu_name": "NVIDIA A100-SXM4-80GB",
+  "torch_version": "2.15.0+cu132",
+  "adapter_dir": "/workspace/Cloud-Vanguard/benchmarks/results/gpu/run1/runs/lora_bf16/adapter",
+  "adapter_bytes": 275342254,
+  "mlflow_run_id": "ae4370426dfc40098d0653a497cbe077",
+  "eval": {
+    "backend": "hf",
+    "examples": 500,
+    "exact_match": 0.924,
+    "perplexity": 1.1246934263631028,
+    "mean_nll": 0.11751048861934957,
+    "scored_tokens": 1270,
+    "latency_ms": {
+      "p50": 98.23100751964375,
+      "p95": 187.16323775879573,
+      "p99": 191.12533336447086,
+      "mean": 122.57276327093132
+    },
+    "generated_tokens_per_s": 20.91818713699558
+  }
+}

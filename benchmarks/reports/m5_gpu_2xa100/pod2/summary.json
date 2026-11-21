@@ -1,0 +1,166 @@
+{
+  "stages": {
+    "setup": {
+      "rc": 0,
+      "start": 1795240384,
+      "end": 1795240674,
+      "seconds": 290
+    },
+    "data": {
+      "rc": 0,
+      "start": 1795240678,
+      "end": 1795240685,
+      "seconds": 7
+    },
+    "download": {
+      "rc": 0,
+      "start": 1795240685,
+      "end": 1795240698,
+      "seconds": 13
+    },
+    "lora_bf16": {
+      "rc": 0,
+      "start": 1795240698,
+      "end": 1795241131,
+      "seconds": 433
+    },
+    "ddp_qlora_nf4": {
+      "rc": 0,
+      "start": 1795241131,
+      "end": 1795241613,
+      "seconds": 482
+    },
+    "vllm_eval": {
+      "rc": 0,
+      "start": 1795241613,
+      "end": 1795241805,
+      "seconds": 192
+    }
+  },
+  "train": [
+    {
+      "variant": "lora_bf16",
+      "gpus": 1,
+      "gpu": "NVIDIA A100-SXM4-80GB",
+      "quant_bits": 0,
+      "params_b": 14.770033664,
+      "trainable_pct": 0.4637341599762778,
+      "weights_gpu_gb": 29.815319552,
+      "peak_allocated_gb": 39.229059584,
+      "peak_reserved_gb": 76.059508736,
+      "nvml_peak_gb": null,
+      "tokens_per_s": 1099.012265986108,
+      "step_ms_p50": 1067.3651639954187,
+      "train_min": 4.8413517965333694,
+      "exact_match": 0.924,
+      "perplexity": 1.1246934263631028,
+      "eval_examples": 500,
+      "first_loss": 0.34520459175109863,
+      "final_loss": 0.10925889499485493,
+      "adapter_mb": 275.342254,
+      "load_s": 6.436640357947908
+    },
+    {
+      "variant": "ddp_qlora_nf4",
+      "gpus": 2,
+      "gpu": "NVIDIA A100-SXM4-80GB",
+      "quant_bits": 4,
+      "params_b": 14.770033664,
+      "trainable_pct": 0.8358353459095872,
+      "weights_gpu_gb": 10.290253824,
+      "peak_allocated_gb": 15.547738112,
+      "peak_reserved_gb": 26.912751616,
+      "nvml_peak_gb": 29.586685952,
+      "tokens_per_s": 1697.9956948409779,
+      "step_ms_p50": 691.0164469736628,
+      "train_min": 3.1331262786164493,
+      "exact_match": 0.92,
+      "perplexity": 1.1237201068832245,
+      "eval_examples": 500,
+      "first_loss": 0.4876523017883301,
+      "final_loss": 0.10841453317552804,
+      "adapter_mb": 275.342254,
+      "load_s": 87.85744700900977
+    }
+  ],
+  "comparisons": {},
+  "telemetry": {
+    "setup": {},
+    "data": {
+      "0": {
+        "peak_memory_used_gb": 0.80452,
+        "mean_utilization_pct": 0.0,
+        "samples": 3
+      },
+      "1": {
+        "peak_memory_used_gb": 0.80452,
+        "mean_utilization_pct": 0.0,
+        "samples": 3
+      }
+    },
+    "download": {
+      "0": {
+        "peak_memory_used_gb": 0.80452,
+        "mean_utilization_pct": 0.0,
+        "samples": 13
+      },
+      "1": {
+        "peak_memory_used_gb": 0.80452,
+        "mean_utilization_pct": 0.0,
+        "samples": 13
+      }
+    },
+    "lora_bf16": {
+      "0": {
+        "peak_memory_used_gb": 77.4164,
+        "mean_utilization_pct": 82.96766743648966,
+        "samples": 433
+      },
+      "1": {
+        "peak_memory_used_gb": 0.807928,
+        "mean_utilization_pct": 0.0,
+        "samples": 433
+      }
+    },
+    "ddp_qlora_nf4": {
+      "0": {
+        "peak_memory_used_gb": 77.416,
+        "mean_utilization_pct": 57.80290456431536,
+        "samples": 482
+      },
+      "1": {
+        "peak_memory_used_gb": 29.5867,
+        "mean_utilization_pct": 78.1307053941909,
+        "samples": 482
+      }
+    },
+    "vllm_eval": {
+      "0": {
+        "peak_memory_used_gb": 72.1798,
+        "mean_utilization_pct": 40.65104166666666,
+        "samples": 192
+      },
+      "1": {
+        "peak_memory_used_gb": 1.24997,
+        "mean_utilization_pct": 0.5364583333333289,
+        "samples": 192
+      }
+    }
+  },
+  "base_eval": null,
+  "vllm_eval": {
+    "backend": "vllm",
+    "examples": 500,
+    "exact_match": 0.924,
+    "perplexity": 1.2145954631960862,
+    "mean_nll": 0.19441106924966758,
+    "scored_tokens": 770,
+    "latency_ms": {
+      "p50": 79.727102041943,
+      "p95": 132.29026896297,
+      "p99": 132.6878397166729,
+      "mean": 94.03639163309708
+    },
+    "generated_tokens_per_s": 27.26603983279143
+  }
+}

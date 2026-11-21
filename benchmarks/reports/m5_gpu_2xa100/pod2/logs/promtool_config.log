@@ -1,0 +1,7 @@
+Checking /workspace/Cloud-Vanguard/benchmarks/gpu/prometheus-gpu.yml
+  SUCCESS: 1 rule files found
+ SUCCESS: /workspace/Cloud-Vanguard/benchmarks/gpu/prometheus-gpu.yml is valid prometheus config file syntax
+
+Checking /workspace/Cloud-Vanguard/observability/prometheus/rules.yml
+  SUCCESS: 13 rules found
+
