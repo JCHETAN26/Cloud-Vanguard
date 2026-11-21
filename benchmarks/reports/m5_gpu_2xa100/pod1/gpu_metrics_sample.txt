@@ -1,0 +1,27 @@
+# HELP cloudvanguard_gpu_up 1 if NVML answered on this scrape
+# TYPE cloudvanguard_gpu_up gauge
+cloudvanguard_gpu_up 1
+# HELP cloudvanguard_gpu_memory_used_bytes GPU memory in use, bytes
+# TYPE cloudvanguard_gpu_memory_used_bytes gauge
+cloudvanguard_gpu_memory_used_bytes{gpu="0",uuid="GPU-c427b3f3-5485-a1bd-25f5-3c9b29f1d309",name="NVIDIA A100-SXM4-80GB"} 8.0452e+08
+cloudvanguard_gpu_memory_used_bytes{gpu="1",uuid="GPU-04f478c5-78cc-c60b-d577-5325f320f7cf",name="NVIDIA A100-SXM4-80GB"} 8.0452e+08
+# HELP cloudvanguard_gpu_memory_total_bytes GPU memory capacity, bytes
+# TYPE cloudvanguard_gpu_memory_total_bytes gauge
+cloudvanguard_gpu_memory_total_bytes{gpu="0",uuid="GPU-c427b3f3-5485-a1bd-25f5-3c9b29f1d309",name="NVIDIA A100-SXM4-80GB"} 8.58993e+10
+cloudvanguard_gpu_memory_total_bytes{gpu="1",uuid="GPU-04f478c5-78cc-c60b-d577-5325f320f7cf",name="NVIDIA A100-SXM4-80GB"} 8.58993e+10
+# HELP cloudvanguard_gpu_utilization_ratio Fraction of the sample period a kernel was running
+# TYPE cloudvanguard_gpu_utilization_ratio gauge
+cloudvanguard_gpu_utilization_ratio{gpu="0",uuid="GPU-c427b3f3-5485-a1bd-25f5-3c9b29f1d309",name="NVIDIA A100-SXM4-80GB"} 0
+cloudvanguard_gpu_utilization_ratio{gpu="1",uuid="GPU-04f478c5-78cc-c60b-d577-5325f320f7cf",name="NVIDIA A100-SXM4-80GB"} 0
+# HELP cloudvanguard_gpu_memory_bandwidth_utilization_ratio Fraction of the sample period device memory was read/written
+# TYPE cloudvanguard_gpu_memory_bandwidth_utilization_ratio gauge
+cloudvanguard_gpu_memory_bandwidth_utilization_ratio{gpu="0",uuid="GPU-c427b3f3-5485-a1bd-25f5-3c9b29f1d309",name="NVIDIA A100-SXM4-80GB"} 0
+cloudvanguard_gpu_memory_bandwidth_utilization_ratio{gpu="1",uuid="GPU-04f478c5-78cc-c60b-d577-5325f320f7cf",name="NVIDIA A100-SXM4-80GB"} 0
+# HELP cloudvanguard_gpu_power_watts Board power draw, watts
+# TYPE cloudvanguard_gpu_power_watts gauge
+cloudvanguard_gpu_power_watts{gpu="0",uuid="GPU-c427b3f3-5485-a1bd-25f5-3c9b29f1d309",name="NVIDIA A100-SXM4-80GB"} 65.86
+cloudvanguard_gpu_power_watts{gpu="1",uuid="GPU-04f478c5-78cc-c60b-d577-5325f320f7cf",name="NVIDIA A100-SXM4-80GB"} 63.74
+# HELP cloudvanguard_gpu_temperature_celsius GPU core temperature, Celsius
+# TYPE cloudvanguard_gpu_temperature_celsius gauge
+cloudvanguard_gpu_temperature_celsius{gpu="0",uuid="GPU-c427b3f3-5485-a1bd-25f5-3c9b29f1d309",name="NVIDIA A100-SXM4-80GB"} 21
+cloudvanguard_gpu_temperature_celsius{gpu="1",uuid="GPU-04f478c5-78cc-c60b-d577-5325f320f7cf",name="NVIDIA A100-SXM4-80GB"} 21

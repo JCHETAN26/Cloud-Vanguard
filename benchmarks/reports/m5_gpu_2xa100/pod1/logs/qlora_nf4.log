@@ -1,0 +1,96 @@
+2026-11-20 22:07:46,119 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-20 22:07:46,325 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-11-20 22:07:46,452 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-11-20 22:07:46,828 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+2026-11-20 22:07:46,884 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-14B "HTTP/1.1 200 OK"
+Loading weights:   0%|          | 0/579 [00:00<?, ?it/s]Loading weights:  97%|█████████▋| 561/579 [00:00<00:00, 5608.01it/s]Loading weights: 100%|██████████| 579/579 [00:00<00:00, 5630.33it/s]
+2026-11-20 22:09:35,087 INFO training.models.quant: quantized 336 linear layers to 4-bit with the bnb backend
+/workspace/Cloud-Vanguard/.venv-gpu/lib/python3.12/site-packages/transformers/modeling_utils.py:3195: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+  warnings.warn(
+2026-11-20 22:10:06,970 INFO training.eval.tracking: MLflow run bd4b1464268244bdb88731eceb244751 at sqlite:////workspace/Cloud-Vanguard/benchmarks/results/gpu/run1/mlflow.db
+2026-11-20 22:10:07,254 INFO training.hf: Qwen/Qwen2.5-14B quant_bits=4 world=1 trainable=68812800/8232817664 (0.836%) weights_gpu=9813.55078125 MB
+2026-11-20 22:10:09,089 INFO training.hf: step 0 loss 0.4685 1751 ms
+2026-11-20 22:10:22,375 INFO training.hf: step 10 loss 0.1374 1757 ms
+2026-11-20 22:10:33,736 INFO training.hf: step 20 loss 0.0429 1126 ms
+2026-11-20 22:10:46,570 INFO training.hf: step 30 loss 0.1599 1529 ms
+2026-11-20 22:10:57,993 INFO training.hf: step 40 loss 0.0433 1156 ms
+2026-11-20 22:11:10,580 INFO training.hf: step 50 loss 0.0311 1003 ms
+2026-11-20 22:11:24,295 INFO training.hf: step 60 loss 0.1086 1734 ms
+2026-11-20 22:11:36,979 INFO training.hf: step 70 loss 0.0418 1618 ms
+2026-11-20 22:11:49,124 INFO training.hf: step 80 loss 0.3628 1158 ms
+2026-11-20 22:12:01,365 INFO training.hf: step 90 loss 0.1525 1121 ms
+2026-11-20 22:12:16,835 INFO training.hf: step 100 loss 0.0379 1452 ms
+2026-11-20 22:12:28,869 INFO training.hf: step 110 loss 0.0905 1013 ms
+2026-11-20 22:12:41,535 INFO training.hf: step 120 loss 0.0534 1148 ms
+2026-11-20 22:12:54,294 INFO training.hf: step 130 loss 0.0316 1409 ms
+2026-11-20 22:13:06,840 INFO training.hf: step 140 loss 0.2214 993 ms
+2026-11-20 22:13:19,454 INFO training.hf: step 150 loss 0.3791 1423 ms
+2026-11-20 22:13:32,419 INFO training.hf: step 160 loss 0.2015 1079 ms
+2026-11-20 22:13:44,265 INFO training.hf: step 170 loss 0.0211 996 ms
+2026-11-20 22:13:56,935 INFO training.hf: step 180 loss 0.1035 1005 ms
+2026-11-20 22:14:08,676 INFO training.hf: step 190 loss 0.1897 1008 ms
+2026-11-20 22:14:21,646 INFO training.hf: step 200 loss 0.0805 1249 ms
+2026-11-20 22:14:34,250 INFO training.hf: step 210 loss 0.0780 1246 ms
+2026-11-20 22:14:46,228 INFO training.hf: step 220 loss 0.0991 1056 ms
+2026-11-20 22:14:59,615 INFO training.hf: step 230 loss 0.1102 1225 ms
+2026-11-20 22:15:11,380 INFO training.hf: step 240 loss 0.1076 1012 ms
+2026-11-20 22:15:22,069 INFO training.hf: step 249 loss 0.1237 1245 ms
+{
+  "model": "Qwen/Qwen2.5-14B",
+  "quant_bits": 4,
+  "dtype": "bf16",
+  "precision": "bf16",
+  "device": "cuda",
+  "world_size": 1,
+  "steps": 250,
+  "batch_size_per_rank": 16,
+  "grad_accum": 1,
+  "global_batch": 16,
+  "max_len": 256,
+  "gradient_checkpointing": true,
+  "lora_r": 16,
+  "hf_model": "Qwen/Qwen2.5-14B",
+  "load_s": 109.44827211101074,
+  "total_params_base": 14770033664,
+  "quant_backend": "bnb",
+  "lora_modules": 336,
+  "trainable_params": 68812800,
+  "total_params": 8232817664,
+  "weight_bytes": 9997232640,
+  "weights_gpu_mb": 9813.55078125,
+  "load_peak_allocated_mb": 9813.55078125,
+  "trainable_pct": 0.8358353459095872,
+  "first_loss": 0.46845772862434387,
+  "final_loss_mean_last10": 0.10849722903221845,
+  "tokens_seen": 318160.0,
+  "train_s": 314.7881434169831,
+  "throughput_tokens_per_s": 1019.5256611978356,
+  "step_ms": {
+    "p50": 1155.0854690140113,
+    "p95": 1822.6592318154871
+  },
+  "peak_allocated_mb": 18791.19287109375,
+  "peak_reserved_mb": 53990.0,
+  "peak_allocated_mb_max_rank": 18791.19287109375,
+  "nvml": {},
+  "gpu_name": "NVIDIA A100-SXM4-80GB",
+  "torch_version": "2.15.0+cu132",
+  "adapter_dir": "/workspace/Cloud-Vanguard/benchmarks/results/gpu/run1/runs/qlora_nf4/adapter",
+  "adapter_bytes": 275342254,
+  "mlflow_run_id": "bd4b1464268244bdb88731eceb244751",
+  "eval": {
+    "backend": "hf",
+    "examples": 500,
+    "exact_match": 0.92,
+    "perplexity": 1.1184672751392637,
+    "mean_nll": 0.11195924370980448,
+    "scored_tokens": 1270,
+    "latency_ms": {
+      "p50": 147.6624569913838,
+      "p95": 271.2377686810214,
+      "p99": 276.06856111669913,
+      "mean": 181.6029971234966
+    },
+    "generated_tokens_per_s": 14.140735784518286
+  }
+}

@@ -91,7 +91,8 @@ Last full run: 2026-11-20, GitHub Codespace (4 vCPU AMD EPYC, Ubuntu 24.04, Dock
 | Manifests | `deploy/` 23 objects, `operator-go/config/default` 9, collector 4; all applied to kube-apiserver; operator runs under its shipped RBAC; shellcheck clean | `make verify-deploy`, `deploy_test.go` |
 | Container images | all 3 build and run (proxy as uid 10001, healthz 200, exit 0 on SIGTERM) | `make images` |
 | **Real cluster** | **PASS**: warm restart 50/50 hits through a re-attached CSI block volume, 0 upstream calls after restart, 50/50 upstream calls traced, `TracingReady=True`, 100 spans at the in-cluster Collector | `make e2e-kind` |
-| **Not verified** | GPU paths (CUDA/bitsandbytes/fp16/NCCL/vLLM); `--attacher=qmp` inside a cluster (QMP is tested against a real VM outside Kubernetes); multi-node storage; VolumeSnapshot through the Kubernetes API; images pushed to a registry; production-scale load on a cluster | — |
+| **GPU (M5)** | Qwen2.5-14B on 2× A100-80GB: `training/tests` 59 passed, 2 skipped on CUDA (the vLLM pytest needs vLLM in the training venv; vLLM is covered by the benchmark); LoRA bf16 82.4% → 92.4% exact match; QLoRA NF4 −49.8% peak allocated memory at 92.0%; 2-GPU NCCL DDP 1.77× (LoRA) / 1.66× (QLoRA) training throughput; vLLM serves the adapter at 92.4%, p50 −42.5% vs HF generate; NVML exporter → Prometheus at 1 s, promtool-clean | `benchmarks/gpu/run_gpu_bench.sh`; record in [`benchmarks/reports/m5_gpu_2xa100/`](benchmarks/reports/m5_gpu_2xa100/) |
+| **Not verified** | fp16 mixed-precision training on a GPU (only GradScaler setup is tested; the A100 runs use bf16); `--attacher=qmp` inside a cluster (QMP is tested against a real VM outside Kubernetes); multi-node storage; VolumeSnapshot through the Kubernetes API; images pushed to a registry; production-scale load on a cluster | — |
 
 ## Run it by hand
 
