@@ -5,6 +5,7 @@
 **A self-hosted LLM gateway that answers repeated prompts from cache, so the model never runs twice for the same question.**
 <br>Multi-tenant · Kubernetes-native · cache survives restarts · with a fine-tuning pipeline for the models behind it
 
+[![CI](https://github.com/JCHETAN26/Cloud-Vanguard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/JCHETAN26/Cloud-Vanguard/actions/workflows/ci.yml)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)
 ![Go](https://img.shields.io/badge/Go-operator%20%2B%20CSI-00ADD8?logo=go&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-PyTorch-3776AB?logo=python&logoColor=white)
@@ -286,6 +287,10 @@ make verify-deploy                           # render every kustomization, bash 
 make images && make e2e-kind                 # build the 3 images; full stack on a kind cluster
 make bench | bench-m1 | bench-m3 | bench-phase2 | bench-phase4
 ```
+
+**Continuous integration** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs `make test`, `make test-asan`,
+`make test-go`, `make test-training` (CPU) and `make verify-deploy` on every push to `main` and every pull request.
+The GPU benchmark and `make e2e-kind` are run by hand (no GPU on hosted runners; kind is slow there).
 
 Last full run: 2026-11-20, GitHub Codespace (4 vCPU AMD EPYC, Ubuntu 24.04, Docker 29.9, kind v0.24 with Kubernetes
 1.31 nodes, no GPU, no KVM), at commit `7ee394d` plus the HostMounter probe fix. GPU run: 2026-11-20/21 on RunPod.
