@@ -158,6 +158,7 @@ Observations: (1) eval with an adapter is slower than the base — likely becaus
 |---|---|---|
 | 1 | Commit GPU result records (`benchmarks/reports/m5_gpu_2xa100/`), `STATUS.md`, README GPU row | ✅ Done |
 | 2 | Merge `m5-gpu-validation` → `main` | ✅ Done |
+| 2a | GitHub Actions CI (gateway, ASan+UBSan, operator/CSI, training CPU, manifests) + README badge | ✅ Done (PR #1, green on `main`) |
 | 3 | Resume bullets | User-owned — Claude does not edit them; §6 lists what the measurements support |
 | 4 | Optional: merge the LoRA adapter before HF eval to remove its latency overhead, re-measure | Open |
 | 5 | Optional: fp16 mixed-precision training on a GPU (only bf16 was run) | Open |
