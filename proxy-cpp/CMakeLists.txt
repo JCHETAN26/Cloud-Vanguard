@@ -103,6 +103,7 @@ if(VANGUARD_BUILD_TESTS)
     tests/test_tenants.cpp
     tests/test_config.cpp
     tests/test_circuit_breaker.cpp
+    tests/test_coalescer.cpp
     tests/test_semantic.cpp
     tests/test_control.cpp
     tests/test_snapshot.cpp
@@ -136,5 +137,10 @@ if(VANGUARD_BUILD_TESTS)
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/integration/test_eval_via_gateway.py
               --binary $<TARGET_FILE:vanguard-proxy> --base-port 18700)
     set_tests_properties(eval_via_gateway PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
+    # Request coalescing: cold-cache bursts, leader abort, shared errors.
+    add_test(NAME coalescing
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/integration/test_coalescing.py
+              --binary $<TARGET_FILE:vanguard-proxy> --base-port 18900)
+    set_tests_properties(coalescing PROPERTIES TIMEOUT 180 RUN_SERIAL TRUE)
   endif()
 endif()

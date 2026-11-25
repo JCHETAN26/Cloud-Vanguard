@@ -13,6 +13,10 @@ before the first byte (time-to-first-token). Streams then emit one SSE event
 per token every --token-interval-ms. Completion text is a deterministic
 function of the prompt, so identical prompts get identical content.
 
+Capacity: --max-concurrency N (0 = unlimited) admits at most N completions at
+a time and queues the rest, the way a model server with a fixed batch size
+does. Queued time counts toward latency; /stats reports the queue's peak.
+
 Fault injection:
   * a last user message containing "__mock_error_500__" returns a 500, which
     lets the benchmark verify that errors are never cached;
@@ -45,7 +49,9 @@ WORDS = (
     "kernel epoll socket buffer vector model prompt answer cluster node"
 ).split()
 
-STATS = {"requests": 0, "stream_requests": 0, "errors_injected": 0, "in_flight": 0, "max_in_flight": 0, "faulted": 0}
+STATS = {"requests": 0, "stream_requests": 0, "errors_injected": 0, "in_flight": 0, "max_in_flight": 0, "faulted": 0,
+         "max_queued": 0}
+SLOTS: asyncio.Semaphore | None = None  # --max-concurrency
 FAULT = {"mode": "ok", "delay_ms": 0, "status": 500}
 CHAT_TIMES: collections.deque = collections.deque(maxlen=2000)
 TRACEPARENTS: collections.deque = collections.deque(maxlen=20000)  # traceparent of recent chat requests
@@ -186,7 +192,12 @@ async def handle_conn(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
                 STATS["in_flight"] += 1
                 STATS["max_in_flight"] = max(STATS["max_in_flight"], STATS["in_flight"])
                 try:
-                    await handle_chat(body, writer, args, rng)
+                    if SLOTS is None:
+                        await handle_chat(body, writer, args, rng)
+                    else:
+                        STATS["max_queued"] = max(STATS["max_queued"], STATS["in_flight"] - args.max_concurrency)
+                        async with SLOTS:
+                            await handle_chat(body, writer, args, rng)
                     await writer.drain()
                 finally:
                     STATS["in_flight"] -= 1
@@ -223,8 +234,13 @@ async def main() -> None:
     p.add_argument("--tokens", type=int, default=24, help="completion length in tokens (words)")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--name", default="mock", help="label reported in /stats")
+    p.add_argument("--max-concurrency", type=int, default=0,
+                   help="completions served at once; the rest queue (0 = unlimited)")
     args = p.parse_args()
     rng = random.Random(args.seed)
+    global SLOTS
+    if args.max_concurrency > 0:
+        SLOTS = asyncio.Semaphore(args.max_concurrency)
 
     server = await asyncio.start_server(lambda r, w: handle_conn(r, w, args, rng), args.host, args.port, backlog=4096)
     print(

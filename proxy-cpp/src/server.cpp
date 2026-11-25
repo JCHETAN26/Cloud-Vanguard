@@ -35,6 +35,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -74,6 +75,10 @@ using Millis = std::chrono::milliseconds;
 
 constexpr std::uint64_t kListenerId = 1;
 constexpr std::uint64_t kAdminListenerId = 2;
+constexpr std::uint64_t kMailboxId = 3;  // this worker's coalescing wake-up eventfd
+// A waiter whose leader produced no cache entry joins (or leads) once more,
+// then calls the upstream on its own: bounded retries, no livelock.
+constexpr int kMaxCoalesceJoins = 2;
 constexpr std::size_t kReadChunk = 64 * 1024;
 constexpr std::size_t kMaxEvents = 512;
 constexpr int kEpollTimeoutMs = 250;
@@ -99,6 +104,10 @@ bool secret_equals(std::string_view a, std::string_view b) {
 }
 
 // Request headers that must not be copied onto a forwarded request.
+bool starts_with_ci(std::string_view s, std::string_view prefix) noexcept {
+  return s.size() >= prefix.size() && iequals(s.substr(0, prefix.size()), prefix);
+}
+
 bool is_hop_header(std::string_view name) {
   for (const char* h : {"host", "connection", "keep-alive", "proxy-connection", "te", "upgrade", "transfer-encoding",
                         "content-length", "x-vanguard-hop", "x-vanguard-peer-token", "x-vanguard-forwarded-by",
@@ -202,6 +211,13 @@ struct InFlight {
   std::size_t frames = 0;
   bool saw_done = false;
   bool cacheable = true;
+
+  // Request coalescing.
+  bool miss_counted = false;
+  bool coalesce_leader = false;   // registered as the key's leader: must release
+  bool coalesce_waiting = false;  // parked until the leader finishes
+  int coalesce_joins = 0;
+  std::shared_ptr<const CoalesceOutcome> coalesce_outcome;  // leader: the response its waiters get
 };
 
 struct ClientConn final : Conn {
@@ -271,6 +287,7 @@ class Worker {
     }
     if (listen_fd_ >= 0) ::close(listen_fd_);
     if (admin_fd_ >= 0) ::close(admin_fd_);
+    if (mailbox_fd_ >= 0) ::close(mailbox_fd_);
     if (epfd_ >= 0) ::close(epfd_);
   }
   Worker(const Worker&) = delete;
@@ -300,7 +317,8 @@ class Worker {
   void relay_peer(UpstreamConn* u, ClientConn* c);
   void peer_failed(ClientConn* c, const std::shared_ptr<CircuitBreaker>& breaker, bool probe, bool timeout);
   void serve_locally(ClientConn* c);
-  void serve_hit(ClientConn* c, const CachedResponse& hit, const InFlight& r, std::optional<float> similarity);
+  void serve_hit(ClientConn* c, const CachedResponse& hit, const InFlight& r, std::optional<float> similarity,
+                 bool coalesced = false);
   void respond(ClientConn* c, int status, std::string_view content_type, std::string_view body,
                std::string_view extra_headers = {});
   void respond_error(ClientConn* c, int status, std::string_view message, std::string_view type,
@@ -315,6 +333,12 @@ class Worker {
   void note_status(ClientConn* c, int status);
   void flush_client(ClientConn* c);
   void finish_exchange(ClientConn* c);
+
+  // Request coalescing
+  bool coalescible(const InFlight& r) const;
+  void release_coalesce(ClientConn* c);
+  void serve_coalesced(ClientConn* c, const CoalesceOutcome& o);
+  void drain_mailbox();
 
   // Miss pipeline
   bool try_semantic_hit(ClientConn* c);
@@ -370,7 +394,8 @@ class Worker {
   int epfd_ = -1;
   int listen_fd_ = -1;
   int admin_fd_ = -1;
-  std::uint64_t next_id_ = kAdminListenerId + 1;
+  int mailbox_fd_ = -1;
+  std::uint64_t next_id_ = kMailboxId + 1;
   std::unordered_map<std::uint64_t, std::unique_ptr<Conn>> conns_;
   std::array<std::vector<std::uint64_t>, 3> idle_;
   std::unordered_map<std::string, std::vector<std::uint64_t>> peer_idle_;
@@ -435,6 +460,19 @@ bool Worker::init(std::string& err) {
     admin_fd_ = make_listener(s_.cfg.admin_addr, s_.cfg.admin_port, kAdminListenerId, err);
     if (admin_fd_ < 0) return false;
   }
+  mailbox_fd_ = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+  if (mailbox_fd_ < 0) {
+    err = std::string("eventfd: ") + std::strerror(errno);
+    return false;
+  }
+  epoll_event ev{};
+  ev.events = EPOLLIN | EPOLLET;
+  ev.data.u64 = kMailboxId;
+  if (::epoll_ctl(epfd_, EPOLL_CTL_ADD, mailbox_fd_, &ev) < 0) {
+    err = std::string("epoll_ctl(eventfd): ") + std::strerror(errno);
+    return false;
+  }
+  s_.mailboxes.at(static_cast<std::size_t>(index_))->wake_fd = mailbox_fd_;
   return true;
 }
 
@@ -479,6 +517,10 @@ void Worker::run() {
       const std::uint32_t ev = events[i].events;
       if (id == kListenerId || id == kAdminListenerId) {
         on_accept(id == kListenerId ? listen_fd_ : admin_fd_, id == kAdminListenerId);
+        continue;
+      }
+      if (id == kMailboxId) {
+        drain_mailbox();
         continue;
       }
       const auto it = conns_.find(id);
@@ -529,6 +571,8 @@ void Worker::close_conn(Conn* c) {
   if (c->kind == ConnKind::kClient) {
     auto* cc = static_cast<ClientConn*>(c);
     s_.metrics.connections_active.fetch_sub(1, std::memory_order_relaxed);
+    // A leader that goes away wakes its waiters; one of them takes over.
+    release_coalesce(cc);
     end_request_span(cc, "client_closed");
     // A client going away aborts its upstream call: for streams this stops
     // token generation (and spend) as soon as nobody is listening.
@@ -799,6 +843,25 @@ void Worker::respond(ClientConn* c, int status, std::string_view content_type, s
   c->out.append(body);
   s_.metrics.count_status(status);
   note_status(c, status);
+  if (c->req && c->req->coalesce_leader) {
+    // Waiters get this same response, minus the headers that describe the
+    // leader's own lookup (they add their own).
+    auto o = std::make_shared<CoalesceOutcome>();
+    o->status = status;
+    o->content_type = std::string(content_type);
+    o->body = std::string(body);
+    std::string_view rest = extra_headers;
+    while (!rest.empty()) {
+      const auto eol = rest.find("\r\n");
+      const auto line = rest.substr(0, eol == std::string_view::npos ? rest.size() : eol + 2);
+      rest.remove_prefix(line.size());
+      if (!starts_with_ci(line, "x-cache:") && !starts_with_ci(line, "x-vanguard-cache-key:") &&
+          !starts_with_ci(line, "x-vanguard-owner:") && !starts_with_ci(line, "x-vanguard-node:")) {
+        o->headers.append(line);
+      }
+    }
+    c->req->coalesce_outcome = std::move(o);
+  }
 }
 
 void Worker::respond_error(ClientConn* c, int status, std::string_view message, std::string_view type,
@@ -1164,7 +1227,8 @@ void Worker::handle_chat(ClientConn* c, HttpRequest& req, Clock::time_point star
   }
 }
 
-void Worker::serve_hit(ClientConn* c, const CachedResponse& hit, const InFlight& r, std::optional<float> similarity) {
+void Worker::serve_hit(ClientConn* c, const CachedResponse& hit, const InFlight& r, std::optional<float> similarity,
+                       bool coalesced) {
   std::string head;
   head.reserve(320);
   head.append("HTTP/1.1 200 OK\r\nServer: cloudvanguard\r\nContent-Type: ").append(hit.content_type);
@@ -1173,7 +1237,9 @@ void Worker::serve_hit(ClientConn* c, const CachedResponse& hit, const InFlight&
   } else {
     head.append("\r\nContent-Length: ").append(std::to_string(hit.body.size())).append("\r\n");
   }
-  if (similarity) {
+  if (coalesced) {
+    head.append("X-Cache: COALESCED\r\n");
+  } else if (similarity) {
     char sim[32];
     std::snprintf(sim, sizeof(sim), "%.4f", static_cast<double>(*similarity));
     head.append("X-Cache: SEMANTIC-HIT\r\nX-Vanguard-Similarity: ").append(sim).append("\r\n");
@@ -1190,10 +1256,16 @@ void Worker::serve_hit(ClientConn* c, const CachedResponse& hit, const InFlight&
   s_.metrics.count_status(200);
   note_status(c, 200);
   if (c->span.recording()) {
-    c->span.set_attribute("vanguard.cache.result", similarity ? "semantic_hit" : "hit");
+    c->span.set_attribute("vanguard.cache.result", coalesced ? "coalesced" : similarity ? "semantic_hit" : "hit");
     if (similarity) c->span.set_attribute("vanguard.semantic.similarity", static_cast<double>(*similarity));
   }
   const auto elapsed = Clock::now() - r.start;
+  if (coalesced) {
+    // Waited for another request's upstream call: latency is a miss's.
+    inc(s_.metrics.coalesce_served);
+    s_.metrics.latency_miss.observe(elapsed);
+    return;
+  }
   if (similarity) {
     inc(s_.metrics.semantic_hits);
     s_.metrics.latency_semantic_hit.observe(elapsed);
@@ -1211,6 +1283,7 @@ void Worker::serve_hit(ClientConn* c, const CachedResponse& hit, const InFlight&
 // The exchange on `c` is over (response fully queued): serve whatever the
 // client pipelined next.
 void Worker::finish_exchange(ClientConn* c) {
+  release_coalesce(c);  // after the cache fill, so woken waiters find the entry
   end_request_span(c);
   c->req.reset();
   c->upstream_id = 0;
@@ -1491,9 +1564,95 @@ void Worker::embedding_failed(ClientConn* c, bool probe, bool timeout) {
 // Miss pipeline: upstream routing and failover
 // ---------------------------------------------------------------------------
 
+bool Worker::coalescible(const InFlight& r) const {
+  // Only complete JSON answers are shared: a stream is relayed as it arrives,
+  // no-cache asks for a fresh answer and no-store forbids the cache fill that
+  // waiters are served from.
+  return s_.cfg.coalesce != 0 && !r.stream && r.store && !r.bypass;
+}
+
+void Worker::release_coalesce(ClientConn* c) {
+  if (!c->req || !c->req->coalesce_leader) return;
+  InFlight& r = *c->req;
+  r.coalesce_leader = false;
+  const auto waiters = s_.coalescer.release(r.key, CoalesceParticipant{index_, c->id});
+  for (const auto& w : waiters) {
+    auto& box = *s_.mailboxes.at(static_cast<std::size_t>(w.worker));
+    box.push(CoalesceWakeup{w.client_id, r.key, r.coalesce_outcome});
+    const std::uint64_t one = 1;
+    // eventfd writes only fail if the counter would overflow; the edge is
+    // already pending then, so the wake-up is not lost.
+    [[maybe_unused]] const auto n = ::write(box.wake_fd, &one, sizeof(one));
+  }
+}
+
+void Worker::serve_coalesced(ClientConn* c, const CoalesceOutcome& o) {
+  const InFlight& r = *c->req;
+  std::string extra = "X-Cache: COALESCED\r\nX-Vanguard-Cache-Key: " + r.key_hex + "\r\nX-Vanguard-Owner: " + r.owner +
+                      "\r\nX-Vanguard-Node: " + s_.cfg.node_id + "\r\n" + o.headers;
+  respond(c, o.status, o.content_type, o.body, extra);
+  inc(s_.metrics.coalesce_served);
+  s_.metrics.latency_miss.observe(Clock::now() - r.start);
+  if (c->span.recording()) c->span.set_attribute("vanguard.cache.result", "coalesced");
+}
+
+// Runs on this worker's loop: waiters whose leader finished. Each gets the
+// leader's response; if the leader ended without one (its client went away),
+// the waiter looks in the cache and otherwise continues its own miss.
+void Worker::drain_mailbox() {
+  std::uint64_t count = 0;
+  while (::read(mailbox_fd_, &count, sizeof(count)) > 0) {
+  }
+  for (auto& w : s_.mailboxes.at(static_cast<std::size_t>(index_))->drain()) {
+    ClientConn* c = client(w.client_id);
+    if (c == nullptr || !c->req || !c->req->coalesce_waiting || c->req->key != w.key) continue;  // gone meanwhile
+    c->req->coalesce_waiting = false;
+    if (w.outcome) {
+      serve_coalesced(c, *w.outcome);
+      finish_exchange(c);
+    } else if (const auto hit = s_.cache.get(w.key, Clock::now())) {
+      serve_hit(c, *hit, *c->req, std::nullopt, /*coalesced=*/true);
+      finish_exchange(c);
+    } else {
+      inc(s_.metrics.coalesce_retries);
+      if (c->span.recording()) c->span.set_attribute("vanguard.coalesce.retry", true);
+      continue_miss(c);
+    }
+  }
+}
+
 void Worker::continue_miss(ClientConn* c) {
   InFlight& r = *c->req;
-  inc(s_.metrics.cache_misses);
+  if (!r.miss_counted) {
+    r.miss_counted = true;
+    inc(s_.metrics.cache_misses);
+  }
+  // Coalescing: join an identical in-flight call, or lead one.
+  if (coalescible(r) && r.coalesce_joins < kMaxCoalesceJoins) {
+    ++r.coalesce_joins;
+    switch (s_.coalescer.join(r.key, CoalesceParticipant{index_, c->id})) {
+      case RequestCoalescer::Role::kWaiter:
+        r.coalesce_waiting = true;
+        inc(s_.metrics.coalesce_waiters);
+        if (c->span.recording()) c->span.set_attribute("vanguard.coalesce.role", "waiter");
+        return;  // woken through the mailbox
+      case RequestCoalescer::Role::kLeader:
+        r.coalesce_leader = true;
+        inc(s_.metrics.coalesce_leaders);
+        if (c->span.recording()) c->span.set_attribute("vanguard.coalesce.role", "leader");
+        // A leader that finished between our cache lookup and this join has
+        // already filled the cache: serve that instead of calling again.
+        if (const auto hit = s_.cache.get(r.key, Clock::now())) {
+          serve_hit(c, *hit, r, std::nullopt);
+          finish_exchange(c);
+          return;
+        }
+        break;
+      case RequestCoalescer::Role::kSolo:
+        inc(s_.metrics.coalesce_solo);
+        break;
+    }
+  }
   // TPM applies only when we will actually call an upstream: exact and
   // semantic hits are free.
   const auto d =
@@ -2016,6 +2175,7 @@ SharedState::SharedState(Config c, ControlPlane::Options control_options, Tenant
       limiter(64),
       cache(cfg.cache_max_mb * 1024 * 1024, cfg.cache_shards, std::chrono::seconds(cfg.cache_ttl_s)),
       semantic(SemanticIndex::Options{16, cfg.semantic_max_entries, cfg.semantic_max_per_scope}),
+      coalescer(cfg.coalesce_max_waiters),
       tracer([this] {
         std::string err;  // load_config() already validated the settings
         return tracing_options(cfg, err).value_or(tracing::TracerOptions{});
@@ -2268,6 +2428,8 @@ int run_server(SharedState& state) {
 
   // Bind every listener before starting any thread so configuration errors
   // (port in use, bad address) fail fast and cleanly.
+  state.mailboxes.clear();
+  for (unsigned i = 0; i < n; ++i) state.mailboxes.push_back(std::make_unique<CoalesceMailbox>());
   std::vector<std::unique_ptr<Worker>> workers;
   for (unsigned i = 0; i < n; ++i) {
     auto w = std::make_unique<Worker>(state, static_cast<int>(i));

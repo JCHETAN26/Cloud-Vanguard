@@ -128,6 +128,18 @@ std::string Metrics::render(const CacheStats& cache, const ControlReport& contro
   counter(out, "vanguard_estimated_tokens_forwarded_total", "Estimated tokens sent upstream (TPM accounting).",
           load(estimated_tokens_forwarded));
 
+  counter(out, "vanguard_coalesce_leaders_total", "Misses that made the upstream call for their key.",
+          load(coalesce_leaders));
+  counter(out, "vanguard_coalesce_waiters_total", "Misses that waited on an identical in-flight request.",
+          load(coalesce_waiters));
+  counter(out, "vanguard_coalesce_served_total", "Waiting misses answered from the leader's cache fill.",
+          load(coalesce_served));
+  counter(out, "vanguard_coalesce_retries_total",
+          "Waiting misses whose leader produced no cache entry (failure, abort, uncacheable).",
+          load(coalesce_retries));
+  counter(out, "vanguard_coalesce_solo_total", "Misses that skipped coalescing because the waiter cap was reached.",
+          load(coalesce_solo));
+
   counter(out, "vanguard_semantic_lookups_total", "Semantic index lookups after an exact miss.",
           load(semantic_lookups));
   counter(out, "vanguard_semantic_hits_total", "Requests served by a semantically similar cached prompt.",

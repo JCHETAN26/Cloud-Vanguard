@@ -1,0 +1,187 @@
+{
+ "env": {
+  "date_utc": "2026-11-24",
+  "host": "GitHub Codespace",
+  "cpus": 4,
+  "cpu_model": "AMD EPYC 7763 64-Core Processor",
+  "kernel": "6.8.0-1070-azure",
+  "build": "RelWithDebInfo"
+ },
+ "method": "tests/integration/test_coalescing.py, run 3 times. Mock LLM (benchmarks/mock_upstream.py) answers in a fixed 600 ms and serves at most 8 completions at once (--max-concurrency 8, the rest queue). Two gateways (COALESCE=0 / COALESCE=1), 4 workers each, same mock. Burst = 100 clients released together by a barrier, identical non-streaming request, cold cache. Latency is client-side, per request. Upstream calls = mock /stats request count delta once idle.",
+ "runs": [
+  {
+   "n": 100,
+   "upstream_ms": 600,
+   "upstream_capacity": 8,
+   "workers": 4,
+   "off": {
+    "upstream_calls": 100,
+    "p50_ms": 4209.1,
+    "p95_ms": 7222.3,
+    "max_ms": 7817.3
+   },
+   "on": {
+    "upstream_calls": 1,
+    "x_cache": {
+     "MISS": 1,
+     "COALESCED": 99,
+     "HIT": 0
+    },
+    "p50_ms": 606.9,
+    "p95_ms": 616.5,
+    "max_ms": 621.5
+   },
+   "error": {
+    "upstream_calls": 1,
+    "statuses": [
+     500
+    ]
+   },
+   "rst": {
+    "upstream_calls": 2,
+    "statuses": [
+     200
+    ],
+    "x_cache": [
+     "COALESCED",
+     "MISS"
+    ]
+   },
+   "close": {
+    "upstream_calls": 1,
+    "statuses": [
+     200
+    ],
+    "x_cache": [
+     "COALESCED"
+    ]
+   },
+   "stream": {
+    "upstream_calls": 10
+   },
+   "metrics_on": {
+    "vanguard_coalesce_leaders_total": 5.0,
+    "vanguard_coalesce_waiters_total": 257.0,
+    "vanguard_coalesce_served_total": 237.0,
+    "vanguard_coalesce_retries_total": 20.0,
+    "vanguard_coalesce_solo_total": 0.0
+   }
+  },
+  {
+   "n": 100,
+   "upstream_ms": 600,
+   "upstream_capacity": 8,
+   "workers": 4,
+   "off": {
+    "upstream_calls": 100,
+    "p50_ms": 4210.0,
+    "p95_ms": 7221.5,
+    "max_ms": 7822.7
+   },
+   "on": {
+    "upstream_calls": 1,
+    "x_cache": {
+     "MISS": 1,
+     "COALESCED": 99,
+     "HIT": 0
+    },
+    "p50_ms": 608.6,
+    "p95_ms": 618.1,
+    "max_ms": 622.5
+   },
+   "error": {
+    "upstream_calls": 1,
+    "statuses": [
+     500
+    ]
+   },
+   "rst": {
+    "upstream_calls": 2,
+    "statuses": [
+     200
+    ],
+    "x_cache": [
+     "COALESCED",
+     "MISS"
+    ]
+   },
+   "close": {
+    "upstream_calls": 1,
+    "statuses": [
+     200
+    ],
+    "x_cache": [
+     "COALESCED"
+    ]
+   },
+   "stream": {
+    "upstream_calls": 10
+   },
+   "metrics_on": {
+    "vanguard_coalesce_leaders_total": 5.0,
+    "vanguard_coalesce_waiters_total": 257.0,
+    "vanguard_coalesce_served_total": 237.0,
+    "vanguard_coalesce_retries_total": 20.0,
+    "vanguard_coalesce_solo_total": 0.0
+   }
+  },
+  {
+   "n": 100,
+   "upstream_ms": 600,
+   "upstream_capacity": 8,
+   "workers": 4,
+   "off": {
+    "upstream_calls": 100,
+    "p50_ms": 4210.3,
+    "p95_ms": 7223.7,
+    "max_ms": 7823.0
+   },
+   "on": {
+    "upstream_calls": 1,
+    "x_cache": {
+     "MISS": 1,
+     "COALESCED": 99,
+     "HIT": 0
+    },
+    "p50_ms": 607.1,
+    "p95_ms": 615.1,
+    "max_ms": 619.0
+   },
+   "error": {
+    "upstream_calls": 1,
+    "statuses": [
+     500
+    ]
+   },
+   "rst": {
+    "upstream_calls": 2,
+    "statuses": [
+     200
+    ],
+    "x_cache": [
+     "COALESCED",
+     "MISS"
+    ]
+   },
+   "close": {
+    "upstream_calls": 1,
+    "statuses": [
+     200
+    ],
+    "x_cache": [
+     "COALESCED"
+    ]
+   },
+   "stream": {
+    "upstream_calls": 10
+   },
+   "metrics_on": {
+    "vanguard_coalesce_leaders_total": 5.0,
+    "vanguard_coalesce_waiters_total": 257.0,
+    "vanguard_coalesce_served_total": 237.0,
+    "vanguard_coalesce_retries_total": 20.0,
+    "vanguard_coalesce_solo_total": 0.0
+   }
+  }
+ ]
+}

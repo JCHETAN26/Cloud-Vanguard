@@ -91,6 +91,13 @@ struct Metrics {
   std::atomic<std::uint64_t> failovers{0};
   std::atomic<std::uint64_t> no_upstream_available{0};
 
+  // Request coalescing.
+  std::atomic<std::uint64_t> coalesce_leaders{0};   // misses that made the upstream call for their key
+  std::atomic<std::uint64_t> coalesce_waiters{0};   // misses that waited on another request's call
+  std::atomic<std::uint64_t> coalesce_served{0};    // waiters answered from the leader's cache fill
+  std::atomic<std::uint64_t> coalesce_retries{0};   // waiters whose leader produced no cache entry
+  std::atomic<std::uint64_t> coalesce_solo{0};      // misses that skipped coalescing (waiter cap reached)
+
   std::atomic<std::uint64_t> semantic_lookups{0};
   std::atomic<std::uint64_t> semantic_hits{0};
   std::atomic<std::uint64_t> semantic_inserts{0};
