@@ -61,6 +61,10 @@ struct Config {
   std::size_t cache_shards = 16;
   unsigned cache_ttl_s = 3600;  // 0 = no expiry
   std::size_t cache_max_entry_kb = 4096;
+  // Request coalescing: concurrent identical non-streaming misses share one
+  // upstream call (1 = on). COALESCE_MAX_WAITERS bounds the waiters per key.
+  unsigned coalesce = 1;
+  std::size_t coalesce_max_waiters = 1024;
 
   std::string node_id = "local";
   std::vector<std::string> ring_nodes;  // ids only (legacy); prefer PEERS

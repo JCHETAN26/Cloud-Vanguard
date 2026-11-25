@@ -12,6 +12,7 @@
 
 #include "vanguard/cached_response.hpp"
 #include "vanguard/circuit_breaker.hpp"
+#include "vanguard/coalescer.hpp"
 #include "vanguard/config.hpp"
 #include "vanguard/control.hpp"
 #include "vanguard/embedding.hpp"
@@ -65,6 +66,10 @@ struct SharedState {
   RateLimiter limiter;
   ShardedLruCache<CachedResponse> cache;
   SemanticIndex semantic;
+  RequestCoalescer coalescer;
+  // One inbox per worker for waking coalesced waiters on their own event loop
+  // (filled by run_server before any worker thread starts).
+  std::vector<std::unique_ptr<CoalesceMailbox>> mailboxes;
   Metrics metrics;
   tracing::Tracer tracer;  // OTLP span export (disabled without an endpoint)
 
