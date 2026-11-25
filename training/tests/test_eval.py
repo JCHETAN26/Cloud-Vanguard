@@ -47,11 +47,18 @@ def test_harness_metrics_from_a_scripted_backend():
     assert rep.mean_nll == pytest.approx(0.5) and rep.perplexity == pytest.approx(math.exp(0.5))
     assert rep.scored_tokens == sum(len(e["text"]) - len(e["prompt"]) for e in EXAMPLES)
     assert rep.latency_ms["p50"] == pytest.approx(10.0) and rep.latency_ms["p99"] == pytest.approx(10.0)
-    assert rep.samples[2] == {"prompt": "rev hello =>", "expected": "olleh", "got": "wrong", "ok": False}
+    assert rep.samples[2] == {"i": 2, "prompt": "rev hello =>", "expected": "olleh", "got": "wrong", "ok": False}
     m = rep.metrics()
     assert m["eval/exact_match"] == 0.75 and "eval/latency_p95_ms" in m
     with pytest.raises(ValueError):
         evaluate(b, [])
+
+
+def test_harness_keeps_every_prediction_when_asked():
+    many = EXAMPLES * 3
+    assert len(evaluate(Scripted(), many, keep_samples=2).samples) == 2
+    kept = evaluate(Scripted(), many, keep_samples=None).samples
+    assert [s["i"] for s in kept] == list(range(len(many)))
 
 
 def test_torch_backend_score_matches_the_training_loss(small_model, data_dir):

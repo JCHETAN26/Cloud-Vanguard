@@ -196,7 +196,8 @@ def _cmd_eval(a: argparse.Namespace) -> int:
         backend = OpenAIHTTPBackend(a.base_url, model=a.model_name, api_key=a.api_key or os.environ.get("OPENAI_API_KEY"))
     else:
         raise SystemExit(f"unknown backend {a.backend}")
-    rep = evaluate(backend, examples, max_new_tokens=a.max_new_tokens)
+    rep = evaluate(backend, examples, max_new_tokens=a.max_new_tokens,
+                   keep_samples=None if a.keep_samples < 0 else a.keep_samples)
     backend.close()
     out = rep.to_dict()
     if a.output:
@@ -268,6 +269,7 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--device", default="auto")
     ev.add_argument("--limit", type=int, default=200)
     ev.add_argument("--max-new-tokens", type=int, default=12)
+    ev.add_argument("--keep-samples", type=int, default=5, help="predictions kept in the report; -1 keeps all")
     ev.add_argument("--max-model-len", type=int, default=2048,
                     help="vllm backend: context cap that sizes the KV cache (the model's own may be 128k)")
     ev.add_argument("--output", default="")

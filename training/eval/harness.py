@@ -44,12 +44,14 @@ class EvalReport:
 
 
 def evaluate(backend: Backend, examples: Sequence[dict], *, max_new_tokens: int = 16, generate: bool = True,
-             score: bool = True, warmup: int = 2, keep_samples: int = 5) -> EvalReport:
+             score: bool = True, warmup: int = 2, keep_samples: int | None = 5) -> EvalReport:
     """``examples``: dicts with ``prompt``, ``answer`` and ``text`` (= prompt + completion).
 
     * exact match: greedy completion (stripped) == answer, for examples that have a prompt;
     * perplexity: exp(total NLL / total tokens) of each completion given its prompt (backends that score);
-    * latency: per-request wall time of generation, after ``warmup`` unmeasured requests."""
+    * latency: per-request wall time of generation, after ``warmup`` unmeasured requests.
+
+    ``keep_samples``: how many graded predictions to keep in the report (None = all, for error analysis)."""
     if not examples:
         raise ValueError("no evaluation examples")
     nll_sum, n_tok = 0.0, 0
@@ -65,7 +67,7 @@ def evaluate(backend: Backend, examples: Sequence[dict], *, max_new_tokens: int 
     if generate:
         for ex in examples[: min(warmup, len(examples))]:
             backend.generate(ex["prompt"], max_new_tokens)
-        for ex in examples:
+        for idx, ex in enumerate(examples):
             g = backend.generate(ex["prompt"], max_new_tokens)
             latencies.append(g.latency_s * 1000)
             gen_tokens += g.new_tokens
@@ -74,8 +76,8 @@ def evaluate(backend: Backend, examples: Sequence[dict], *, max_new_tokens: int 
                 graded += 1
                 ok = g.text.strip() == ex["answer"]
                 correct += ok
-                if len(samples) < keep_samples:
-                    samples.append({"prompt": ex["prompt"], "expected": ex["answer"], "got": g.text.strip(), "ok": ok})
+                if keep_samples is None or len(samples) < keep_samples:
+                    samples.append({"i": idx, "prompt": ex["prompt"], "expected": ex["answer"], "got": g.text.strip(), "ok": ok})
     lat = {}
     if latencies:
         lat = {"p50": percentile(latencies, 50), "p95": percentile(latencies, 95),
