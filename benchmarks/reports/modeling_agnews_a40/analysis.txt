@@ -1,0 +1,17 @@
+2000 eval rows, classes {'Business': 496, 'World': 489, 'Sports': 491, 'Sci/Tech': 524}
+model             strict     acc  macroF1  95% CI          unparsed
+tfidf_small       0.8640  0.8640   0.8641  [0.8492, 0.8782]        0
+tfidf_full        0.9165  0.9165   0.9169  [0.9063, 0.9284]        0
+base              0.7705  0.8205   0.8189  [0.8037, 0.8344]        2
+lora              0.9200  0.9200   0.9205  [0.9094, 0.9317]        0
+tfidf_small vs tfidf_full: only tfidf_small right 26, only tfidf_full right 131, McNemar p=4.67e-18
+tfidf_small vs base: only tfidf_small right 222, only base right 135, McNemar p=4.81e-06
+tfidf_small vs lora: only tfidf_small right 38, only lora right 150, McNemar p=6.12e-17
+tfidf_full vs base: only tfidf_full right 250, only base right 58, McNemar p=1.48e-29
+tfidf_full vs lora: only tfidf_full right 50, only lora right 57, McNemar p=0.562
+base vs lora: only base right 36, only lora right 235, McNemar p=5.66e-37
+tfidf_small top confusions: Business->Sci/Tech 70, Sci/Tech->Business 57, Business->World 24, World->Sports 21
+tfidf_full top confusions: Business->Sci/Tech 46, Sci/Tech->Business 37, World->Sci/Tech 17, World->Sports 14
+base top confusions: Sci/Tech->Business 233, World->Business 34, Business->Sci/Tech 20, Sci/Tech->World 19
+lora top confusions: Sci/Tech->Business 42, Business->Sci/Tech 40, World->Business 21, World->Sci/Tech 15
+wrong for every model: 86
