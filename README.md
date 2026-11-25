@@ -64,6 +64,7 @@ each client stays inside its quota, and the bots keep answering when one model b
  app ──► Gateway ──► exact-match cache hit?  ────────── yes ──► answer from memory (X-Cache: HIT)
             │        similar-prompt cache hit + guard?  yes ──► answer from memory (X-Cache: SEMANTIC-HIT)
             │ miss
+            ├─ identical request already in flight?        yes ──► wait, share its answer (X-Cache: COALESCED)
             ├─ tenant within rate limit and token budget?   no ──► 429 Too Many Requests
             ├─ primary upstream healthy? else fail over to the fallback (circuit breaker)
             └─► vLLM / OpenAI ──► answer ──► stored in cache ──► app (X-Cache: MISS)
@@ -76,13 +77,16 @@ each client stays inside its quota, and the bots keep answering when one model b
    the same scope. A match needs high similarity (0.96 with a neural embedder) **and** must pass a salient-token guard:
    numbers, negations and key words have to match. So *"refund order 123"* never gets *"refund order 456"*'s answer,
    and *"is X safe"* never matches *"is X not safe"*.
-4. **Limits before spend.** Requests-per-minute is charged on every request; tokens-per-minute only on misses, since
+4. **Request coalescing.** When many clients send the same uncached request at once, only the first calls the model;
+   the others wait for its answer (errors included, so a failing model isn't hit once per client). The in-flight
+   table is shared by all of a gateway's workers. Streams and `no-cache` / `no-store` requests are not coalesced.
+5. **Limits before spend.** Requests-per-minute is charged on every request; tokens-per-minute only on misses, since
    cache hits cost the upstream nothing.
-5. **Failover.** A per-upstream circuit breaker opens after repeated failures, and a failed or stalled request is
+6. **Failover.** A per-upstream circuit breaker opens after repeated failures, and a failed or stalled request is
    retried once on the fallback before any byte reaches the client.
-6. **Scale out.** N gateways form one logical cache: a 1,000-virtual-node consistent-hash ring routes each prompt to
+7. **Scale out.** N gateways form one logical cache: a 1,000-virtual-node consistent-hash ring routes each prompt to
    its owner node, so entries aren't duplicated and any node can take any request.
-7. **Survive restarts.** Each node snapshots its cache to a persistent disk (crash-safe, checksummed, two alternating
+8. **Survive restarts.** Each node snapshots its cache to a persistent disk (crash-safe, checksummed, two alternating
    slots). After a restart the disk is re-attached and the cache is restored before the first request is served.
 
 The model side: [`training/`](training/) fine-tunes a model for the domain (LoRA or the memory-saving QLoRA, on one or
@@ -106,6 +110,18 @@ GitHub Codespace, 4 vCPU (AMD EPYC), 2 gateway workers, mock upstream answering 
 | Throughput, cache hits (`hey`, 32 connections) | **49,397 req/s**, p99 2.8 ms |
 | Throughput with 100% trace sampling | 36,417 req/s (10% sampling: 48,721 req/s) |
 | Semantic-cache safety (hand-written paraphrase set) | **0 false hits**; 3 of 12 paraphrases hit (safety chosen over recall) |
+
+**Request coalescing** — 100 clients send the same request at once into a cold cache; mock LLM answering in 600 ms
+with 8 concurrent slots (the rest queue), 4 gateway workers, 3 runs with matching results
+([`coalescing_codespace_4vcpu.json`](benchmarks/reports/coalescing_codespace_4vcpu.json)):
+
+| | Coalescing off | Coalescing on |
+|---|---|---|
+| Calls to the model | 100 | **1** |
+| Client latency p50 / p95 | 4.21 s / 7.22 s | **0.61 s / 0.62 s** |
+
+An upstream 500 reaches the model once and all 100 clients get it; a first client that resets its connection hands
+the call to a waiter (2 calls, every waiter answered).
 
 ### Reliability on a real Kubernetes cluster (kind)
 
@@ -297,7 +313,7 @@ Last full run: 2026-11-20, GitHub Codespace (4 vCPU AMD EPYC, Ubuntu 24.04, Dock
 
 | Area | Status | Result | Verified how |
 |---|---|---|---|
-| Gateway unit + integration | ✅ | **139/139** (`make test`), **139/139** under ASan+UBSan, 0 sanitizer reports | ctest: 135 unit, 3-node ring, tracing, robustness, eval-via-gateway |
+| Gateway unit + integration | ✅ | **147/147** (`make test`), **147/147** under ASan+UBSan, 0 sanitizer reports | ctest: 142 unit, 3-node ring, tracing, robustness, eval-via-gateway, coalescing |
 | Operator + CSI | ✅ | **39 Go tests pass**; csi-sanity **64/64** specs per volume mode; real QEMU (TCG) hot-plug; generated CRDs/RBAC/deepcopy match the committed files | `make test-go` (envtest = real kube-apiserver + etcd 1.32) |
 | CSI node data path | ✅ | loop devices and mount, 2/2 as root | `sudo` test binary (skipped in `make test-go`) |
 | Training (CPU) | ✅ | **52 passed, 4 skipped** (skips need CUDA) | `make test-training` |
@@ -321,7 +337,6 @@ Stated plainly so nothing above is read as more than it is.
 
 **Not built yet** (from [`proxy-cpp/README.md`](proxy-cpp/README.md#design-decisions-and-trade-offs))
 - TLS to upstreams (plain HTTP only) and an IPv6 listener
-- Request coalescing for concurrent identical misses (cache stampede)
 - An approximate vector index (HNSW) for very large semantic scopes; the exact scan costs ~1 ms at the per-scope cap
 - Reconciling the estimated token count with the upstream's reported `usage`
 

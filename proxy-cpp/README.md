@@ -106,7 +106,7 @@ ring owner is a single trace across nodes. Span schema, settings and trade-offs:
 * `GET /healthz`
 * `GET /metrics` (Prometheus text format: cache, rate limit, upstream counters, latency histograms, trace exporter counters)
 
-Response headers: `X-Cache: HIT|SEMANTIC-HIT|MISS|BYPASS`, `X-Vanguard-Similarity` (semantic hits),
+Response headers: `X-Cache: HIT|SEMANTIC-HIT|COALESCED|MISS|BYPASS`, `X-Vanguard-Similarity` (semantic hits),
 `X-Vanguard-Upstream: primary|fallback`, `X-Vanguard-Failover: <reason>`, `X-Vanguard-Cache-Key` (16-hex prefix),
 `X-Vanguard-Owner` (ring owner). `Cache-Control: no-cache` skips lookup and
 `no-store` skips the fill.
@@ -118,6 +118,8 @@ Set each option as an environment variable or as the matching flag
 `LISTEN_PORT` (8080), `WORKERS` (#cores), `UPSTREAM_URL`, `UPSTREAM_API_KEY`,
 `TENANTS_FILE`, `DEFAULT_RPM`/`DEFAULT_TPM`, `CACHE_MAX_MB` (256), `CACHE_SHARDS` (16),
 `CACHE_TTL_S` (3600), `NODE_ID`, `RING_NODES`, `RING_VNODES` (1000).
+
+Coalescing: `COALESCE` (1; 0 disables), `COALESCE_MAX_WAITERS` (1024).
 
 Phase 2: `FALLBACK_UPSTREAM_URL`, `FALLBACK_UPSTREAM_API_KEY`, `FALLBACK_MODEL`,
 `UPSTREAM_TTFB_TIMEOUT_MS` (300), `FALLBACK_TTFB_TIMEOUT_MS` (10000), `BREAKER_FAILURE_THRESHOLD` (5),
@@ -183,7 +185,22 @@ Without one, any bearer token is accepted as its own tenant (`anon-<sha256 prefi
 * **Per-request failover happens once, before any byte reaches the client.** A stream that
   dies mid-relay is cut, not restarted elsewhere. Upstream 429 is passed through, not
   treated as a failure. Responses from the fallback are cached under the same key.
-* **Known Phase 1 gaps:** plain-HTTP upstream only (no TLS), IPv4 listener, no
-  request coalescing for concurrent identical misses (cache stampede), a TPM
+* **Request coalescing (single flight).** Concurrent identical non-streaming misses
+  share one upstream call: the first leads, the rest wait (`X-Cache: COALESCED`).
+  The table (`include/vanguard/coalescer.hpp`) is shared by all workers, because
+  `SO_REUSEPORT` spreads identical requests across event loops; across nodes the
+  ring already sends a key to one owner. A waiter is woken on its own loop through
+  a per-worker `eventfd` mailbox, so connections never change threads.
+  - Waiters get the leader's response **as-is, errors included**: an upstream 500
+    costs one call, not one per waiter.
+  - A leader that ends without a response (its client reset the connection, which
+    aborts the call) wakes its waiters empty-handed; they join again and one leads.
+    One re-join, then each calls on its own: bounded, no livelock. A leader whose
+    client closes cleanly keeps going (non-streaming misses finish to fill the cache).
+  - Not coalesced: streams (relayed as they arrive), `no-cache`, `no-store`.
+  - Waiters skip the TPM check (they cause no upstream spend); a leader rejected by
+    TPM shares its 429 with them, which is correct because the key includes the tenant.
+  - `COALESCE_MAX_WAITERS` (1024) caps waiters per key; later misses go solo.
+* **Known Phase 1 gaps:** plain-HTTP upstream only (no TLS), IPv4 listener, a TPM
   estimate that is not reconciled with the upstream's reported `usage`, and chunked
   request bodies rejected with 411.

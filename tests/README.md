@@ -11,6 +11,7 @@ provides every tool listed, including Docker and kind.
 |---|---|---|
 | `integration/test_tracing_e2e.py` | proxy x2 (ring) + mock LLM + OTLP receiver | W3C trace context flows caller → gateway → peer → upstream; sampling; span status; exporter metrics; tracing off |
 | `integration/test_http_robustness.py` | proxy data + admin ports | 38 hostile requests (invalid UTF-8, wrongly typed JSON, malformed control documents) never take the process down |
+| `integration/test_coalescing.py` | proxy x2 (4 workers each) + capacity-limited mock LLM | A 100-client cold burst makes 1 upstream call with coalescing (100 without); an upstream 500 is shared, not retried per waiter; a leader whose client resets hands the call to a waiter; streams are not coalesced |
 | `integration/test_eval_via_gateway.py` | `training.eval` + proxy + mock LLM | The evaluation harness measured through the gateway: cold pass reaches the upstream, warm pass is served from cache with zero upstream calls and byte-identical answers; `/metrics` agrees |
 
 `benchmarks/multinode_test.py` (3-node ring routing, loop prevention, control plane) is registered in the same
