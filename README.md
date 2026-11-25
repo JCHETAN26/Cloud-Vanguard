@@ -160,6 +160,24 @@ Topic classification (AG News), 4,000 training rows, 500 held-out rows, 250 step
 Memory is peak *allocated* by PyTorch, in GiB. Speedups are for the training loop, not the whole job (two processes
 loading a 30 GB checkpoint add start-up time). Full tables and caveats: [`STATUS.md`](STATUS.md) §4.2.
 
+### Is fine-tuning worth it? (QLoRA vs untuned vs a classical baseline, 1× A40)
+
+The same task on 2,000 held-out rows, with every prediction kept for error analysis
+([`benchmarks/modeling/`](benchmarks/modeling/README.md)):
+
+| Model | Training rows | Accuracy | Macro-F1 [95% CI] |
+|---|---|---|---|
+| TF-IDF + logistic regression | 4,000 | 86.4% | 0.864 [0.849, 0.878] |
+| Qwen2.5-14B NF4, untuned (zero-shot) | 0 | 82.1% (77.1% exact match) | 0.819 [0.804, 0.834] |
+| TF-IDF + logistic regression | 120,000 | 91.65% | 0.917 [0.906, 0.928] |
+| **Qwen2.5-14B NF4 + QLoRA** | 4,000 | **92.0%** | **0.921 [0.909, 0.932]** |
+
+- **Same data:** QLoRA beats the untuned model and TF-IDF (McNemar p < 1e-16).
+- **More data for the baseline:** it only ties TF-IDF trained on 30× more labelled rows (p = 0.56), and costs
+  ~231 ms per answer on a GPU against < 1 ms on a CPU.
+- **What fine-tuning fixed:** the untuned model's run-on answers and its bias toward "Business".
+- **What is left:** mostly Business ↔ Sci/Tech, and 86 rows that every model gets wrong.
+
 ---
 
 ## Architecture

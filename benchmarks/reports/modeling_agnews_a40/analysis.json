@@ -1,0 +1,3576 @@
+{
+ "rows": 2000,
+ "class_counts": {
+  "Business": 496,
+  "World": 489,
+  "Sports": 491,
+  "Sci/Tech": 524
+ },
+ "models": {
+  "tfidf_small": {
+   "strict_accuracy": 0.864,
+   "accuracy": 0.864,
+   "macro_f1": 0.8640864747020688,
+   "macro_f1_ci95": [
+    0.8491833183352613,
+    0.8782345306777748
+   ],
+   "unparseable": 0,
+   "per_class": {
+    "World": {
+     "precision": 0.8809034907597536,
+     "recall": 0.8773006134969326,
+     "f1": 0.8790983606557378,
+     "support": 489
+    },
+    "Sports": {
+     "precision": 0.9161793372319688,
+     "recall": 0.9572301425661914,
+     "f1": 0.9362549800796812,
+     "support": 491
+    },
+    "Business": {
+     "precision": 0.8329809725158562,
+     "recall": 0.7943548387096774,
+     "f1": 0.8132094943240454,
+     "support": 496
+    },
+    "Sci/Tech": {
+     "precision": 0.825426944971537,
+     "recall": 0.8301526717557252,
+     "f1": 0.8277830637488107,
+     "support": 524
+    }
+   },
+   "confusions": [
+    {
+     "gold": "Business",
+     "pred": "Sci/Tech",
+     "count": 70
+    },
+    {
+     "gold": "Sci/Tech",
+     "pred": "Business",
+     "count": 57
+    },
+    {
+     "gold": "Business",
+     "pred": "World",
+     "count": 24
+    },
+    {
+     "gold": "World",
+     "pred": "Sports",
+     "count": 21
+    },
+    {
+     "gold": "World",
+     "pred": "Business",
+     "count": 21
+    },
+    {
+     "gold": "Sci/Tech",
+     "pred": "World",
+     "count": 18
+    },
+    {
+     "gold": "World",
+     "pred": "Sci/Tech",
+     "count": 18
+    },
+    {
+     "gold": "Sports",
+     "pred": "World",
+     "count": 16
+    },
+    {
+     "gold": "Sci/Tech",
+     "pred": "Sports",
+     "count": 14
+    },
+    {
+     "gold": "Business",
+     "pred": "Sports",
+     "count": 8
+    },
+    {
+     "gold": "Sports",
+     "pred": "Sci/Tech",
+     "count": 4
+    },
+    {
+     "gold": "Sports",
+     "pred": "Business",
+     "count": 1
+    }
+   ],
+   "raw_outputs_top": [
+    [
+     "Sci/Tech",
+     527
+    ],
+    [
+     "Sports",
+     513
+    ],
+    [
+     "World",
+     487
+    ],
+    [
+     "Business",
+     473
+    ]
+   ],
+   "latency_ms": null
+  },
+  "tfidf_full": {
+   "strict_accuracy": 0.9165,
+   "accuracy": 0.9165,
+   "macro_f1": 0.9168958800911906,
+   "macro_f1_ci95": [
+    0.9062519796836181,
+    0.928350146751096
+   ],
+   "unparseable": 0,
+   "per_class": {
+    "World": {
+     "precision": 0.9427966101694916,
+     "recall": 0.9100204498977505,
+     "f1": 0.9261186264308012,
+     "support": 489
+    },
+    "Sports": {
+     "precision": 0.9525691699604744,
+     "recall": 0.9816700610997964,
+     "f1": 0.966900702106319,
+     "support": 491
+    },
+    "Business": {
+     "precision": 0.893223819301848,
+     "recall": 0.8770161290322581,
+     "f1": 0.8850457782299086,
+     "support": 496
+    },
+    "Sci/Tech": {
+     "precision": 0.8803738317757009,
+     "recall": 0.898854961832061,
+     "f1": 0.8895184135977338,
+     "support": 524
+    }
+   },
+   "confusions": [
+    {
+     "gold": "Business",
+     "pred": "Sci/Tech",
+     "count": 46
+    },
+    {
+     "gold": "Sci/Tech",
+     "pred": "Business",
+     "count": 37
+    },
+    {
+     "gold": "World",
+     "pred": "Sci/Tech",
+     "count": 17
+    },
+    {
+     "gold": "World",
+     "pred": "Sports",
+     "count": 14
+    },
+    {
+     "gold": "World",
+     "pred": "Business",
+     "count": 13
+    },
+    {
+     "gold": "Business",
+     "pred": "World",
+     "count": 12
+    },
+    {
+     "gold": "Sci/Tech",
+     "pred": "World",
+     "count": 9
+    },
+    {
+     "gold": "Sci/Tech",
+     "pred": "Sports",
+     "count": 7
+    },
+    {
+     "gold": "Sports",
+     "pred": "World",
+     "count": 6
+    },
+    {
+     "gold": "Business",
+     "pred": "Sports",
+     "count": 3
+    },
+    {
+     "gold": "Sports",
+     "pred": "Business",
+     "count": 2
+    },
+    {
+     "gold": "Sports",
+     "pred": "Sci/Tech",
+     "count": 1
+    }
+   ],
+   "raw_outputs_top": [
+    [
+     "Sci/Tech",
+     535
+    ],
+    [
+     "Sports",
+     506
+    ],
+    [
+     "Business",
+     487
+    ],
+    [
+     "World",
+     472
+    ]
+   ],
+   "latency_ms": null
+  },
+  "base": {
+   "strict_accuracy": 0.7705,
+   "accuracy": 0.8205,
+   "macro_f1": 0.8188580597661042,
+   "macro_f1_ci95": [
+    0.803655530414456,
+    0.8344260850558536
+   ],
+   "unparseable": 2,
+   "per_class": {
+    "World": {
+     "precision": 0.9184549356223176,
+     "recall": 0.8752556237218814,
+     "f1": 0.8963350785340315,
+     "support": 489
+    },
+    "Sports": {
+     "precision": 0.9659318637274549,
+     "recall": 0.9816700610997964,
+     "f1": 0.9737373737373737,
+     "support": 491
+    },
+    "Business": {
+     "precision": 0.6297814207650273,
+     "recall": 0.9294354838709677,
+     "f1": 0.750814332247557,
+     "support": 496
+    },
+    "Sci/Tech": {
+     "precision": 0.8970099667774086,
+     "recall": 0.5152671755725191,
+     "f1": 0.6545454545454545,
+     "support": 524
+    }
+   },
+   "confusions": [
+    {
+     "gold": "Sci/Tech",
+     "pred": "Business",
+     "count": 233
+    },
+    {
+     "gold": "World",
+     "pred": "Business",
+     "count": 34
+    },
+    {
+     "gold": "Business",
+     "pred": "Sci/Tech",
+     "count": 20
+    },
+    {
+     "gold": "Sci/Tech",
+     "pred": "World",
+     "count": 19
+    },
+    {
+     "gold": "World",
+     "pred": "Sports",
+     "count": 15
+    },
+    {
+     "gold": "Business",
+     "pred": "World",
+     "count": 14
+    },
+    {
+     "gold": "World",
+     "pred": "Sci/Tech",
+     "count": 11
+    },
+    {
+     "gold": "Sports",
+     "pred": "World",
+     "count": 5
+    },
+    {
+     "gold": "Sports",
+     "pred": "Business",
+     "count": 4
+    },
+    {
+     "gold": "Business",
+     "pred": "Sports",
+     "count": 1
+    },
+    {
+     "gold": "Sci/Tech",
+     "pred": "Sports",
+     "count": 1
+    },
+    {
+     "gold": "Sci/Tech",
+     "pred": "(none)",
+     "count": 1
+    },
+    {
+     "gold": "World",
+     "pred": "(none)",
+     "count": 1
+    }
+   ],
+   "raw_outputs_top": [
+    [
+     "Business",
+     730
+    ],
+    [
+     "World",
+     461
+    ],
+    [
+     "Sports",
+     410
+    ],
+    [
+     "Sci/Tech",
+     289
+    ],
+    [
+     "Sports\n\nThe news article discusses",
+     54
+    ],
+    [
+     "Sports\n\nThe news article is",
+     23
+    ],
+    [
+     "Sci/Tech\n\nThe news",
+     12
+    ],
+    [
+     "Sports\n\nStep 1:",
+     7
+    ]
+   ],
+   "latency_ms": {
+    "p50": 166.5799979818985,
+    "p95": 314.7804992448073,
+    "p99": 365.88446459150873,
+    "mean": 183.0925441022846
+   }
+  },
+  "lora": {
+   "strict_accuracy": 0.92,
+   "accuracy": 0.92,
+   "macro_f1": 0.9204748308203762,
+   "macro_f1_ci95": [
+    0.9093796140658716,
+    0.9316823140187886
+   ],
+   "unparseable": 0,
+   "per_class": {
+    "World": {
+     "precision": 0.9482758620689655,
+     "recall": 0.8997955010224948,
+     "f1": 0.9233997901364112,
+     "support": 489
+    },
+    "Sports": {
+     "precision": 0.9681908548707754,
+     "recall": 0.9918533604887984,
+     "f1": 0.9798792756539235,
+     "support": 491
+    },
+    "Business": {
+     "precision": 0.8722986247544204,
+     "recall": 0.8951612903225806,
+     "f1": 0.8835820895522388,
+     "support": 496
+    },
+    "Sci/Tech": {
+     "precision": 0.8950381679389313,
+     "recall": 0.8950381679389313,
+     "f1": 0.8950381679389313,
+     "support": 524
+    }
+   },
+   "confusions": [
+    {
+     "gold": "Sci/Tech",
+     "pred": "Business",
+     "count": 42
+    },
+    {
+     "gold": "Business",
+     "pred": "Sci/Tech",
+     "count": 40
+    },
+    {
+     "gold": "World",
+     "pred": "Business",
+     "count": 21
+    },
+    {
+     "gold": "World",
+     "pred": "Sci/Tech",
+     "count": 15
+    },
+    {
+     "gold": "World",
+     "pred": "Sports",
+     "count": 13
+    },
+    {
+     "gold": "Sci/Tech",
+     "pred": "World",
+     "count": 12
+    },
+    {
+     "gold": "Business",
+     "pred": "World",
+     "count": 10
+    },
+    {
+     "gold": "Business",
+     "pred": "Sports",
+     "count": 2
+    },
+    {
+     "gold": "Sports",
+     "pred": "Business",
+     "count": 2
+    },
+    {
+     "gold": "Sports",
+     "pred": "World",
+     "count": 2
+    },
+    {
+     "gold": "Sci/Tech",
+     "pred": "Sports",
+     "count": 1
+    }
+   ],
+   "raw_outputs_top": [
+    [
+     "Sci/Tech",
+     524
+    ],
+    [
+     "Business",
+     509
+    ],
+    [
+     "Sports",
+     503
+    ],
+    [
+     "World",
+     464
+    ]
+   ],
+   "latency_ms": {
+    "p50": 230.7469894294627,
+    "p95": 432.42156911292113,
+    "p99": 460.84517885930836,
+    "mean": 281.47465054894565
+   }
+  }
+ },
+ "pairs": [
+  {
+   "a": "tfidf_small",
+   "b": "tfidf_full",
+   "only_a_right": 26,
+   "only_b_right": 131,
+   "mcnemar_p": 4.6679966824958124e-18
+  },
+  {
+   "a": "tfidf_small",
+   "b": "base",
+   "only_a_right": 222,
+   "only_b_right": 135,
+   "mcnemar_p": 4.807810441663056e-06
+  },
+  {
+   "a": "tfidf_small",
+   "b": "lora",
+   "only_a_right": 38,
+   "only_b_right": 150,
+   "mcnemar_p": 6.123456074922973e-17
+  },
+  {
+   "a": "tfidf_full",
+   "b": "base",
+   "only_a_right": 250,
+   "only_b_right": 58,
+   "mcnemar_p": 1.481629103592576e-29
+  },
+  {
+   "a": "tfidf_full",
+   "b": "lora",
+   "only_a_right": 50,
+   "only_b_right": 57,
+   "mcnemar_p": 0.5620926850537895
+  },
+  {
+   "a": "base",
+   "b": "lora",
+   "only_a_right": 36,
+   "only_b_right": 235,
+   "mcnemar_p": 5.660637295061795e-37
+  }
+ ],
+ "errors": {
+  "tfidf_small": {
+   "World -> Sports": [
+    {
+     "i": 4,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 19,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 68,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 166,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 182,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "World",
+      "base": "Sports",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 232,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 276,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 436,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Business -> Sci/Tech": [
+    {
+     "i": 8,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 12,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Business",
+      "base": "World",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 48,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 55,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 61,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 79,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 94,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 155,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Business"
+     }
+    }
+   ],
+   "Sci/Tech -> World": [
+    {
+     "i": 40,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 70,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 189,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 290,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 329,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 330,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 415,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 547,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Business",
+      "lora": "Business"
+     }
+    }
+   ],
+   "World -> Sci/Tech": [
+    {
+     "i": 59,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 76,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 192,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 217,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 280,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 631,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 724,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 974,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "Business -> Sports": [
+    {
+     "i": 62,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 193,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 411,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 641,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 702,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 936,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 1355,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Business",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 1669,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    }
+   ],
+   "Sci/Tech -> Business": [
+    {
+     "i": 69,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 71,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 83,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 104,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 130,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 152,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 167,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 300,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    }
+   ],
+   "World -> Business": [
+    {
+     "i": 81,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 261,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 383,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 385,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 437,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 444,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 449,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 458,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    }
+   ],
+   "Business -> World": [
+    {
+     "i": 228,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 229,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 271,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 395,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 495,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 537,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 581,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 680,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    }
+   ],
+   "Sci/Tech -> Sports": [
+    {
+     "i": 242,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 256,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 426,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 465,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 666,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 694,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 704,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 1281,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Sports -> World": [
+    {
+     "i": 284,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 387,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 472,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 613,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 653,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 708,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 732,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 791,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sports",
+      "base": "Business",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Sports -> Sci/Tech": [
+    {
+     "i": 434,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1269,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1449,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Business",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1842,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Sports -> Business": [
+    {
+     "i": 1267,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ]
+  },
+  "tfidf_full": {
+   "World -> Sports": [
+    {
+     "i": 4,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 166,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 232,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 276,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 436,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 657,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 857,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1008,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Business -> Sci/Tech": [
+    {
+     "i": 48,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 55,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 79,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 94,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 155,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 255,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 258,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 352,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "Business -> Sports": [
+    {
+     "i": 62,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 193,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1619,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sports",
+      "base": "Business",
+      "lora": "Business"
+     }
+    }
+   ],
+   "World -> Sci/Tech": [
+    {
+     "i": 76,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 192,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 280,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 297,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 437,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 444,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 542,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 631,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "World -> Business": [
+    {
+     "i": 81,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 261,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 383,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 385,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 449,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 458,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 1017,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 1246,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    }
+   ],
+   "Sci/Tech -> Business": [
+    {
+     "i": 83,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 104,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 130,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 300,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 311,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 316,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 399,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 415,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "World",
+      "lora": "World"
+     }
+    }
+   ],
+   "Business -> World": [
+    {
+     "i": 228,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 229,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 379,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "World",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 680,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 703,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 735,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 909,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1005,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Business",
+      "lora": "Business"
+     }
+    }
+   ],
+   "Sci/Tech -> World": [
+    {
+     "i": 330,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 370,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "World",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 547,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 842,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 997,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1041,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 1503,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 1583,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "Sports -> Sci/Tech": [
+    {
+     "i": 387,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Sci/Tech -> Sports": [
+    {
+     "i": 465,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 551,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sports",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 666,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 694,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 1281,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1568,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sports",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1972,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sports",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "Sports -> Business": [
+    {
+     "i": 472,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 1449,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Business",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Sports -> World": [
+    {
+     "i": 1327,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1356,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1622,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "World",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1726,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "World",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1913,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "World",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1971,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ]
+  },
+  "base": {
+   "World -> Sci/Tech": [
+    {
+     "i": 4,
+     "got": "Sci/Tech\n\nThe news",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 280,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 406,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 617,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Sci/Tech",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 865,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "World",
+      "base": "Sci/Tech",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 978,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 1069,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Sci/Tech",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1379,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "Business -> World": [
+    {
+     "i": 12,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Business",
+      "base": "World",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 228,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 229,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 680,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 909,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 924,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1361,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "World",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 1378,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    }
+   ],
+   "Sci/Tech -> Business": [
+    {
+     "i": 16,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 27,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 37,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 43,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 54,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 83,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 98,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 101,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "Business -> Sci/Tech": [
+    {
+     "i": 48,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 79,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 94,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 258,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 442,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 493,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 498,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 817,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "World -> Business": [
+    {
+     "i": 76,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 81,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 261,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 383,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 384,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Business",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 385,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 437,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 449,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    }
+   ],
+   "Sci/Tech -> World": [
+    {
+     "i": 119,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 176,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 330,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 371,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 415,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 426,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 457,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 543,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "World -> Sports": [
+    {
+     "i": 166,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 182,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "World",
+      "base": "Sports",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 232,
+     "got": "Sports\n\nThe news article is",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 237,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 276,
+     "got": "Sports\n\nThe news article discusses",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 436,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 657,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 857,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Business -> Sports": [
+    {
+     "i": 193,
+     "got": "Sports\n\nStep 1:",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Sports -> Business": [
+    {
+     "i": 358,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Business",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 472,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 791,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sports",
+      "base": "Business",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 904,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Business",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Sports -> World": [
+    {
+     "i": 867,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "World",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1327,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1337,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "World",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1356,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1749,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sports",
+      "base": "World",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Sci/Tech -> Sports": [
+    {
+     "i": 1281,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Sci/Tech -> (none)": [
+    {
+     "i": 1858,
+     "got": "Health",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "(none)",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "World -> (none)": [
+    {
+     "i": 1862,
+     "got": "Entertainment",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "World",
+      "base": "(none)",
+      "lora": "World"
+     }
+    }
+   ]
+  },
+  "lora": {
+   "World -> Sci/Tech": [
+    {
+     "i": 4,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 76,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 280,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 406,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 437,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 631,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 962,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 974,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "Business -> Sci/Tech": [
+    {
+     "i": 48,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 79,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 94,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 148,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 255,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 258,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 352,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    },
+    {
+     "i": 357,
+     "got": "Sci/Tech",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Sci/Tech"
+     }
+    }
+   ],
+   "World -> Business": [
+    {
+     "i": 81,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 261,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 383,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 385,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 449,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 458,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 470,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 542,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Business"
+     }
+    }
+   ],
+   "Sci/Tech -> Business": [
+    {
+     "i": 83,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 104,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 300,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 311,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 316,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 399,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 529,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 547,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Business",
+      "lora": "Business"
+     }
+    }
+   ],
+   "World -> Sports": [
+    {
+     "i": 166,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 232,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 237,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 276,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 436,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 657,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 857,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1008,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Sci/Tech -> World": [
+    {
+     "i": 176,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 330,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 415,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 667,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 870,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 997,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1029,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Sci/Tech",
+      "base": "Sci/Tech",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1144,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Sci/Tech",
+      "tfidf_full": "Sci/Tech",
+      "base": "World",
+      "lora": "World"
+     }
+    }
+   ],
+   "Business -> Sports": [
+    {
+     "i": 193,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    },
+    {
+     "i": 1461,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "World",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Business -> World": [
+    {
+     "i": 228,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 229,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 680,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 909,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 924,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1378,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1514,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1614,
+     "got": "World",
+     "others": {
+      "tfidf_small": "Business",
+      "tfidf_full": "Business",
+      "base": "World",
+      "lora": "World"
+     }
+    }
+   ],
+   "Sports -> Business": [
+    {
+     "i": 472,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "Business",
+      "base": "Business",
+      "lora": "Business"
+     }
+    },
+    {
+     "i": 1875,
+     "got": "Business",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Business"
+     }
+    }
+   ],
+   "Sci/Tech -> Sports": [
+    {
+     "i": 1281,
+     "got": "Sports",
+     "others": {
+      "tfidf_small": "Sports",
+      "tfidf_full": "Sports",
+      "base": "Sports",
+      "lora": "Sports"
+     }
+    }
+   ],
+   "Sports -> World": [
+    {
+     "i": 1327,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    },
+    {
+     "i": 1356,
+     "got": "World",
+     "others": {
+      "tfidf_small": "World",
+      "tfidf_full": "World",
+      "base": "World",
+      "lora": "World"
+     }
+    }
+   ]
+  }
+ },
+ "wrong_for_all": 86
+}
