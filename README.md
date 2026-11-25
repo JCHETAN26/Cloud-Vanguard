@@ -123,6 +123,19 @@ with 8 concurrent slots (the rest queue), 4 gateway workers, 3 runs with matchin
 An upstream 500 reaches the model once and all 100 clients get it; a first client that resets its connection hands
 the call to a waiter (2 calls, every waiter answered).
 
+**Cache replay on support traffic** — 1,000 held-out requests generated from the public Bitext customer-support
+dataset (27 intents, labelled answers), threshold tuned on a separate 3,000-request stream, mock LLM (simulated latency)
+([`benchmarks/replay/`](benchmarks/replay/)):
+
+| Mode | Model calls avoided | Wrong answers served |
+|---|---|---|
+| Exact cache only | 32.8% | 0 |
+| + semantic, neural bge-small @ 0.96 | 36.8% | 0 |
+| + semantic, lexical @ 0.70 (most aggressive error-free setting on the tune stream) | 39.0% | 2 (`get_invoice` ↔ `check_invoice`) |
+
+Most of the saving is exact caching; semantic matching adds 1.4–4.0 points at error-free settings.
+
+
 ### Reliability on a real Kubernetes cluster (kind)
 
 | Check | Result |

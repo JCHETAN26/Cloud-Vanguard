@@ -1,0 +1,543 @@
+{
+ "method": {
+  "tune_requests": 600,
+  "test_requests": 1000,
+  "client": "1 client, sequential, stream order",
+  "upstream": "mock LLM, uniform 200-600 ms (simulated)",
+  "gateway": "2 workers, fresh process (empty cache) per run",
+  "threshold_rule": "most correct reuses with zero incorrect reuses on the tune stream"
+ },
+ "tune": {
+  "lexical": {
+   "sweep": [
+    {
+     "threshold": 0.7,
+     "correct_reuses": 220,
+     "incorrect_reuses": 0,
+     "upstream_calls": 380
+    },
+    {
+     "threshold": 0.75,
+     "correct_reuses": 217,
+     "incorrect_reuses": 0,
+     "upstream_calls": 383
+    },
+    {
+     "threshold": 0.8,
+     "correct_reuses": 215,
+     "incorrect_reuses": 0,
+     "upstream_calls": 385
+    },
+    {
+     "threshold": 0.85,
+     "correct_reuses": 214,
+     "incorrect_reuses": 0,
+     "upstream_calls": 386
+    },
+    {
+     "threshold": 0.88,
+     "correct_reuses": 208,
+     "incorrect_reuses": 0,
+     "upstream_calls": 392
+    },
+    {
+     "threshold": 0.9,
+     "correct_reuses": 205,
+     "incorrect_reuses": 0,
+     "upstream_calls": 395
+    },
+    {
+     "threshold": 0.92,
+     "correct_reuses": 199,
+     "incorrect_reuses": 0,
+     "upstream_calls": 401
+    },
+    {
+     "threshold": 0.94,
+     "correct_reuses": 197,
+     "incorrect_reuses": 0,
+     "upstream_calls": 403
+    },
+    {
+     "threshold": 0.96,
+     "correct_reuses": 197,
+     "incorrect_reuses": 0,
+     "upstream_calls": 403
+    },
+    {
+     "threshold": 0.98,
+     "correct_reuses": 197,
+     "incorrect_reuses": 0,
+     "upstream_calls": 403
+    }
+   ],
+   "chosen_threshold": 0.7
+  },
+  "neural": {
+   "sweep": [
+    {
+     "threshold": 0.8,
+     "correct_reuses": 229,
+     "incorrect_reuses": 0,
+     "upstream_calls": 371
+    },
+    {
+     "threshold": 0.84,
+     "correct_reuses": 227,
+     "incorrect_reuses": 0,
+     "upstream_calls": 373
+    },
+    {
+     "threshold": 0.86,
+     "correct_reuses": 226,
+     "incorrect_reuses": 0,
+     "upstream_calls": 374
+    },
+    {
+     "threshold": 0.88,
+     "correct_reuses": 225,
+     "incorrect_reuses": 0,
+     "upstream_calls": 375
+    },
+    {
+     "threshold": 0.9,
+     "correct_reuses": 224,
+     "incorrect_reuses": 0,
+     "upstream_calls": 376
+    },
+    {
+     "threshold": 0.92,
+     "correct_reuses": 219,
+     "incorrect_reuses": 0,
+     "upstream_calls": 381
+    },
+    {
+     "threshold": 0.94,
+     "correct_reuses": 213,
+     "incorrect_reuses": 0,
+     "upstream_calls": 387
+    },
+    {
+     "threshold": 0.96,
+     "correct_reuses": 206,
+     "incorrect_reuses": 0,
+     "upstream_calls": 394
+    },
+    {
+     "threshold": 0.98,
+     "correct_reuses": 189,
+     "incorrect_reuses": 0,
+     "upstream_calls": 411
+    }
+   ],
+   "chosen_threshold": 0.8
+  },
+  "exact": {
+   "correct_reuses": 179,
+   "incorrect_reuses": 0
+  }
+ },
+ "test": {
+  "off": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "BYPASS": 1000
+   },
+   "upstream_calls": 1000,
+   "reuses": 0,
+   "correct_reuses": 0,
+   "incorrect_reuses": 0,
+   "reference_answer_words_avoided": 0,
+   "latency_ms": {
+    "p50": 412.8,
+    "p95": 585.5,
+    "mean": 407.0
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 84,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "paraphrase": {
+     "requests": 577,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "exact_repeat": {
+     "requests": 339,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    }
+   },
+   "incorrect_examples": [],
+   "upstream_calls_avoided_vs_off": 0
+  },
+  "exact": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "MISS": 661,
+    "HIT": 339
+   },
+   "upstream_calls": 661,
+   "reuses": 339,
+   "correct_reuses": 339,
+   "incorrect_reuses": 0,
+   "reference_answer_words_avoided": 31659,
+   "latency_ms": {
+    "p50": 302.6,
+    "p95": 562.4,
+    "mean": 264.3
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 84,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "paraphrase": {
+     "requests": 577,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "exact_repeat": {
+     "requests": 339,
+     "reused_correct": 339,
+     "reused_incorrect": 0
+    }
+   },
+   "incorrect_examples": [],
+   "upstream_calls_avoided_vs_off": 339
+  },
+  "lexical@0.70 (tuned)": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "MISS": 602,
+    "HIT": 339,
+    "SEMANTIC-HIT": 59
+   },
+   "upstream_calls": 602,
+   "reuses": 398,
+   "correct_reuses": 394,
+   "incorrect_reuses": 4,
+   "reference_answer_words_avoided": 36631,
+   "latency_ms": {
+    "p50": 271.7,
+    "p95": 574.8,
+    "mean": 243.3
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 84,
+     "reused_correct": 0,
+     "reused_incorrect": 1
+    },
+    "paraphrase": {
+     "requests": 577,
+     "reused_correct": 56,
+     "reused_incorrect": 2
+    },
+    "exact_repeat": {
+     "requests": 339,
+     "reused_correct": 338,
+     "reused_incorrect": 1
+    }
+   },
+   "incorrect_examples": [
+    {
+     "request": "how do i create a Gold account",
+     "label": "create_account|{{Account Category}}=Gold",
+     "served_from": "can I create a gold account?",
+     "served_label": "create_account|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.8614"
+    },
+    {
+     "request": "how do i create a Gold account",
+     "label": "create_account|{{Account Category}}=Gold",
+     "served_from": "can I create a gold account?",
+     "served_label": "create_account|",
+     "x_cache": "HIT",
+     "similarity": null
+    },
+    {
+     "request": "need to create an Gold account",
+     "label": "create_account|{{Account Category}}=Gold",
+     "served_from": "can I create a gold account?",
+     "served_label": "create_account|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "1.0000"
+    },
+    {
+     "request": "I need to see the invoices from Maria Lopez, can you help me?",
+     "label": "check_invoice|{{Person Name}}=Maria Lopez",
+     "served_from": "I want to get my invoice from Maria Lopez, I need help",
+     "served_label": "get_invoice|{{Person Name}}=Maria Lopez",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.7430"
+    }
+   ],
+   "upstream_calls_avoided_vs_off": 398
+  },
+  "lexical@0.94 (default)": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "MISS": 641,
+    "HIT": 339,
+    "SEMANTIC-HIT": 20
+   },
+   "upstream_calls": 641,
+   "reuses": 359,
+   "correct_reuses": 358,
+   "incorrect_reuses": 1,
+   "reference_answer_words_avoided": 33241,
+   "latency_ms": {
+    "p50": 289.3,
+    "p95": 570.5,
+    "mean": 256.6
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 84,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "paraphrase": {
+     "requests": 577,
+     "reused_correct": 19,
+     "reused_incorrect": 1
+    },
+    "exact_repeat": {
+     "requests": 339,
+     "reused_correct": 339,
+     "reused_incorrect": 0
+    }
+   },
+   "incorrect_examples": [
+    {
+     "request": "need to create an Gold account",
+     "label": "create_account|{{Account Category}}=Gold",
+     "served_from": "can I create a gold account?",
+     "served_label": "create_account|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "1.0000"
+    }
+   ],
+   "upstream_calls_avoided_vs_off": 359
+  },
+  "neural@0.80 (tuned)": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "MISS": 581,
+    "HIT": 339,
+    "SEMANTIC-HIT": 80
+   },
+   "upstream_calls": 581,
+   "reuses": 419,
+   "correct_reuses": 405,
+   "incorrect_reuses": 14,
+   "reference_answer_words_avoided": 38830,
+   "latency_ms": {
+    "p50": 264.5,
+    "p95": 574.9,
+    "mean": 239.4
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 84,
+     "reused_correct": 0,
+     "reused_incorrect": 1
+    },
+    "paraphrase": {
+     "requests": 577,
+     "reused_correct": 67,
+     "reused_incorrect": 12
+    },
+    "exact_repeat": {
+     "requests": 339,
+     "reused_correct": 338,
+     "reused_incorrect": 1
+    }
+   },
+   "incorrect_examples": [
+    {
+     "request": "how do i create a Gold account",
+     "label": "create_account|{{Account Category}}=Gold",
+     "served_from": "can I create a gold account?",
+     "served_label": "create_account|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.9547"
+    },
+    {
+     "request": "how do i create a Gold account",
+     "label": "create_account|{{Account Category}}=Gold",
+     "served_from": "can I create a gold account?",
+     "served_label": "create_account|",
+     "x_cache": "HIT",
+     "similarity": null
+    },
+    {
+     "request": "i need help checking how long the shipment takes",
+     "label": "delivery_period|",
+     "served_from": "help me check the shipment options",
+     "served_label": "delivery_options|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.8586"
+    },
+    {
+     "request": "help me to get my invoices from Sam Okafor",
+     "label": "get_invoice|{{Person Name}}=Sam Okafor",
+     "served_from": "where do I see my invoices from Sam Okafor?",
+     "served_label": "check_invoice|{{Person Name}}=Sam Okafor",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.9510"
+    },
+    {
+     "request": "I want to check the shipping options, can I get some help?",
+     "label": "delivery_options|",
+     "served_from": "is it possible to check how long the shipping takes?",
+     "served_label": "delivery_period|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.8272"
+    },
+    {
+     "request": "I have got to see how long the shipment takes, I need help",
+     "label": "delivery_period|",
+     "served_from": "I have got to see the shipment options, I need help",
+     "served_label": "delivery_options|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.8783"
+    },
+    {
+     "request": "how do I know if there is anything new on my reimbursement?",
+     "label": "track_refund|",
+     "served_from": "I would like to see how long reimbursements take",
+     "served_label": "check_refund_policy|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.8419"
+    },
+    {
+     "request": "I want help checking the methods for shipping",
+     "label": "delivery_options|",
+     "served_from": "is it possible to check how long the shipping takes?",
+     "served_label": "delivery_period|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.8342"
+    },
+    {
+     "request": "need to create an Gold account",
+     "label": "create_account|{{Account Category}}=Gold",
+     "served_from": "can I create a gold account?",
+     "served_label": "create_account|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.9610"
+    },
+    {
+     "request": "I need to see the invoices from Maria Lopez, can you help me?",
+     "label": "check_invoice|{{Person Name}}=Maria Lopez",
+     "served_from": "I want to get my invoice from Maria Lopez, I need help",
+     "served_label": "get_invoice|{{Person Name}}=Maria Lopez",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.9427"
+    },
+    {
+     "request": "what do i have to do to check how  long the shipment takes",
+     "label": "delivery_period|",
+     "served_from": "I have to check the shipment options, help me",
+     "served_label": "delivery_options|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.8510"
+    },
+    {
+     "request": "I need to take a quick look at the bills from Sam Okafor",
+     "label": "check_invoice|{{Person Name}}=Sam Okafor",
+     "served_from": "I want help to get my bill from Sam Okafor",
+     "served_label": "get_invoice|{{Person Name}}=Sam Okafor",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.8260"
+    },
+    {
+     "request": "would it be possible to get my invoices from Sam Okafor?",
+     "label": "get_invoice|{{Person Name}}=Sam Okafor",
+     "served_from": "where do I see my invoices from Sam Okafor?",
+     "served_label": "check_invoice|{{Person Name}}=Sam Okafor",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.9344"
+    },
+    {
+     "request": "I have got to see how long the delivery takes, I need help",
+     "label": "delivery_period|",
+     "served_from": "I have got to see what delivery options are there",
+     "served_label": "delivery_options|",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.8666"
+    }
+   ],
+   "upstream_calls_avoided_vs_off": 419
+  },
+  "neural@0.96 (default)": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "MISS": 621,
+    "HIT": 339,
+    "SEMANTIC-HIT": 40
+   },
+   "upstream_calls": 621,
+   "reuses": 379,
+   "correct_reuses": 379,
+   "incorrect_reuses": 0,
+   "reference_answer_words_avoided": 35002,
+   "latency_ms": {
+    "p50": 290.2,
+    "p95": 572.9,
+    "mean": 255.5
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 84,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "paraphrase": {
+     "requests": 577,
+     "reused_correct": 40,
+     "reused_incorrect": 0
+    },
+    "exact_repeat": {
+     "requests": 339,
+     "reused_correct": 339,
+     "reused_incorrect": 0
+    }
+   },
+   "incorrect_examples": [],
+   "upstream_calls_avoided_vs_off": 379
+  }
+ },
+ "env": {
+  "date_utc": "2026-11-25",
+  "host": "GitHub Codespace",
+  "cpus": 4,
+  "cpu_model": "AMD EPYC 7763 64-Core Processor",
+  "embedder": "BAAI/bge-small-en-v1.5 via fastembed 0.9.1 (CPU)",
+  "dataset": "bitext/Bitext-customer-support-llm-chatbot-training-dataset @ 430d1a89bd93bd1fa23c16f29dd53e73f0087443 (CDLA-Sharing-1.0), not committed"
+ },
+ "note": "SUPERSEDED: labels treated slot values written literally in the dataset text (e.g. 'gold') as no entity, so some correct reuses were scored incorrect; the 600-request tune stream produced no errors at any threshold, so the rule picked the bottom of the grid. Kept for the record; see v2."
+}

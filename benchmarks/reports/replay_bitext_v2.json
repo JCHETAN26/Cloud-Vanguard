@@ -1,0 +1,431 @@
+{
+ "method": {
+  "tune_requests": 3000,
+  "test_requests": 1000,
+  "client": "1 client, sequential, stream order",
+  "upstream": "mock LLM, uniform 200-600 ms (simulated)",
+  "gateway": "2 workers, fresh process (empty cache) per run",
+  "threshold_rule": "most correct reuses with zero incorrect reuses on the tune stream"
+ },
+ "tune": {
+  "lexical": {
+   "sweep": [
+    {
+     "threshold": 0.6,
+     "correct_reuses": 1614,
+     "incorrect_reuses": 8,
+     "upstream_calls": 1378
+    },
+    {
+     "threshold": 0.65,
+     "correct_reuses": 1602,
+     "incorrect_reuses": 7,
+     "upstream_calls": 1391
+    },
+    {
+     "threshold": 0.7,
+     "correct_reuses": 1591,
+     "incorrect_reuses": 0,
+     "upstream_calls": 1409
+    },
+    {
+     "threshold": 0.75,
+     "correct_reuses": 1577,
+     "incorrect_reuses": 0,
+     "upstream_calls": 1423
+    },
+    {
+     "threshold": 0.8,
+     "correct_reuses": 1554,
+     "incorrect_reuses": 0,
+     "upstream_calls": 1446
+    },
+    {
+     "threshold": 0.85,
+     "correct_reuses": 1518,
+     "incorrect_reuses": 0,
+     "upstream_calls": 1482
+    },
+    {
+     "threshold": 0.88,
+     "correct_reuses": 1473,
+     "incorrect_reuses": 0,
+     "upstream_calls": 1527
+    },
+    {
+     "threshold": 0.9,
+     "correct_reuses": 1442,
+     "incorrect_reuses": 0,
+     "upstream_calls": 1558
+    },
+    {
+     "threshold": 0.92,
+     "correct_reuses": 1414,
+     "incorrect_reuses": 0,
+     "upstream_calls": 1586
+    },
+    {
+     "threshold": 0.94,
+     "correct_reuses": 1411,
+     "incorrect_reuses": 0,
+     "upstream_calls": 1589
+    },
+    {
+     "threshold": 0.96,
+     "correct_reuses": 1406,
+     "incorrect_reuses": 0,
+     "upstream_calls": 1594
+    },
+    {
+     "threshold": 0.98,
+     "correct_reuses": 1400,
+     "incorrect_reuses": 0,
+     "upstream_calls": 1600
+    }
+   ],
+   "chosen_threshold": 0.7,
+   "chosen_at_grid_edge": false
+  },
+  "neural": {
+   "sweep": [
+    {
+     "threshold": 0.7,
+     "correct_reuses": 1649,
+     "incorrect_reuses": 28,
+     "upstream_calls": 1323
+    },
+    {
+     "threshold": 0.75,
+     "correct_reuses": 1649,
+     "incorrect_reuses": 28,
+     "upstream_calls": 1323
+    },
+    {
+     "threshold": 0.8,
+     "correct_reuses": 1648,
+     "incorrect_reuses": 26,
+     "upstream_calls": 1326
+    },
+    {
+     "threshold": 0.84,
+     "correct_reuses": 1644,
+     "incorrect_reuses": 19,
+     "upstream_calls": 1337
+    },
+    {
+     "threshold": 0.86,
+     "correct_reuses": 1643,
+     "incorrect_reuses": 13,
+     "upstream_calls": 1344
+    },
+    {
+     "threshold": 0.88,
+     "correct_reuses": 1639,
+     "incorrect_reuses": 12,
+     "upstream_calls": 1349
+    },
+    {
+     "threshold": 0.9,
+     "correct_reuses": 1622,
+     "incorrect_reuses": 6,
+     "upstream_calls": 1372
+    },
+    {
+     "threshold": 0.92,
+     "correct_reuses": 1605,
+     "incorrect_reuses": 3,
+     "upstream_calls": 1392
+    },
+    {
+     "threshold": 0.94,
+     "correct_reuses": 1566,
+     "incorrect_reuses": 2,
+     "upstream_calls": 1432
+    },
+    {
+     "threshold": 0.96,
+     "correct_reuses": 1484,
+     "incorrect_reuses": 2,
+     "upstream_calls": 1514
+    },
+    {
+     "threshold": 0.98,
+     "correct_reuses": 1361,
+     "incorrect_reuses": 0,
+     "upstream_calls": 1639
+    }
+   ],
+   "chosen_threshold": 0.98,
+   "chosen_at_grid_edge": false
+  },
+  "exact": {
+   "correct_reuses": 1223,
+   "incorrect_reuses": 0
+  }
+ },
+ "test": {
+  "off": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "BYPASS": 1000
+   },
+   "upstream_calls": 1000,
+   "reuses": 0,
+   "correct_reuses": 0,
+   "incorrect_reuses": 0,
+   "reference_answer_words_avoided": 0,
+   "latency_ms": {
+    "p50": 412.9,
+    "p95": 585.5,
+    "mean": 406.9
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 89,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "paraphrase": {
+     "requests": 583,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "exact_repeat": {
+     "requests": 328,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    }
+   },
+   "incorrect_examples": [],
+   "upstream_calls_avoided_vs_off": 0
+  },
+  "exact": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "MISS": 672,
+    "HIT": 328
+   },
+   "upstream_calls": 672,
+   "reuses": 328,
+   "correct_reuses": 328,
+   "incorrect_reuses": 0,
+   "reference_answer_words_avoided": 31151,
+   "latency_ms": {
+    "p50": 310.7,
+    "p95": 562.5,
+    "mean": 268.8
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 89,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "paraphrase": {
+     "requests": 583,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "exact_repeat": {
+     "requests": 328,
+     "reused_correct": 328,
+     "reused_incorrect": 0
+    }
+   },
+   "incorrect_examples": [],
+   "upstream_calls_avoided_vs_off": 328
+  },
+  "lexical@0.70 (tuned)": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "MISS": 610,
+    "HIT": 328,
+    "SEMANTIC-HIT": 62
+   },
+   "upstream_calls": 610,
+   "reuses": 390,
+   "correct_reuses": 388,
+   "incorrect_reuses": 2,
+   "reference_answer_words_avoided": 36655,
+   "latency_ms": {
+    "p50": 277.8,
+    "p95": 576.6,
+    "mean": 246.8
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 89,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "paraphrase": {
+     "requests": 583,
+     "reused_correct": 60,
+     "reused_incorrect": 2
+    },
+    "exact_repeat": {
+     "requests": 328,
+     "reused_correct": 328,
+     "reused_incorrect": 0
+    }
+   },
+   "incorrect_examples": [
+    {
+     "request": "I need to see the invoices from Maria Lopez, can you help me?",
+     "label": "check_invoice|maria lopez",
+     "served_from": "I want to get my invoice from Maria Lopez, I need help",
+     "served_label": "get_invoice|maria lopez",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.7430"
+    },
+    {
+     "request": "I want help to get my bill from Sam Okafor",
+     "label": "get_invoice|sam okafor",
+     "served_from": "want help to find my bill from Sam Okafor",
+     "served_label": "check_invoice|sam okafor",
+     "x_cache": "SEMANTIC-HIT",
+     "similarity": "0.7320"
+    }
+   ],
+   "upstream_calls_avoided_vs_off": 390
+  },
+  "lexical@0.94 (default)": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "MISS": 654,
+    "HIT": 328,
+    "SEMANTIC-HIT": 18
+   },
+   "upstream_calls": 654,
+   "reuses": 346,
+   "correct_reuses": 346,
+   "incorrect_reuses": 0,
+   "reference_answer_words_avoided": 32495,
+   "latency_ms": {
+    "p50": 294.7,
+    "p95": 570.5,
+    "mean": 261.7
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 89,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "paraphrase": {
+     "requests": 583,
+     "reused_correct": 18,
+     "reused_incorrect": 0
+    },
+    "exact_repeat": {
+     "requests": 328,
+     "reused_correct": 328,
+     "reused_incorrect": 0
+    }
+   },
+   "incorrect_examples": [],
+   "upstream_calls_avoided_vs_off": 346
+  },
+  "neural@0.98 (tuned)": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "MISS": 658,
+    "HIT": 328,
+    "SEMANTIC-HIT": 14
+   },
+   "upstream_calls": 658,
+   "reuses": 342,
+   "correct_reuses": 342,
+   "incorrect_reuses": 0,
+   "reference_answer_words_avoided": 32208,
+   "latency_ms": {
+    "p50": 305.6,
+    "p95": 581.4,
+    "mean": 271.4
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 89,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "paraphrase": {
+     "requests": 583,
+     "reused_correct": 14,
+     "reused_incorrect": 0
+    },
+    "exact_repeat": {
+     "requests": 328,
+     "reused_correct": 328,
+     "reused_incorrect": 0
+    }
+   },
+   "incorrect_examples": [],
+   "upstream_calls_avoided_vs_off": 342
+  },
+  "neural@0.96 (default)": {
+   "requests": 1000,
+   "statuses": {
+    "200": 1000
+   },
+   "x_cache": {
+    "MISS": 632,
+    "HIT": 328,
+    "SEMANTIC-HIT": 40
+   },
+   "upstream_calls": 632,
+   "reuses": 368,
+   "correct_reuses": 368,
+   "incorrect_reuses": 0,
+   "reference_answer_words_avoided": 34600,
+   "latency_ms": {
+    "p50": 297.5,
+    "p95": 578.2,
+    "mean": 260.9
+   },
+   "by_category": {
+    "new_answer": {
+     "requests": 89,
+     "reused_correct": 0,
+     "reused_incorrect": 0
+    },
+    "paraphrase": {
+     "requests": 583,
+     "reused_correct": 40,
+     "reused_incorrect": 0
+    },
+    "exact_repeat": {
+     "requests": 328,
+     "reused_correct": 328,
+     "reused_incorrect": 0
+    }
+   },
+   "incorrect_examples": [],
+   "upstream_calls_avoided_vs_off": 368
+  }
+ },
+ "env": {
+  "date_utc": "2026-11-25",
+  "host": "GitHub Codespace",
+  "cpus": 4,
+  "cpu_model": "AMD EPYC 7763 64-Core Processor",
+  "embedder": "BAAI/bge-small-en-v1.5 via fastembed 0.9.1 (CPU)",
+  "dataset": "bitext/Bitext-customer-support-llm-chatbot-training-dataset @ 430d1a89bd93bd1fa23c16f29dd53e73f0087443 (CDLA-Sharing-1.0), not committed"
+ },
+ "note": "Labels fixed (literal slot values join the label), 3,000-request tune stream, wider grid."
+}
